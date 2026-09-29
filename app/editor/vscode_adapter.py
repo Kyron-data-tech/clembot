@@ -915,6 +915,21 @@ class VSCodeAdapter(EditorAdapter):
             if not chunks:
                 chunks = [eol]
 
+            # Record original content in code_patch_engine undo stack
+            try:
+                from app.editor.code_patch_engine import code_patch_engine
+                orig_text, orig_eol = code_patch_engine.read_file_with_eol(file_path)
+                code_patch_engine._undo_history.append({
+                    "path": file_path,
+                    "original_content": orig_text,
+                    "modified_content": "".join(lines[:s] + chunks + lines[e:]),
+                    "diff": "",
+                    "explanation": f"Line edit in {file_path.name}",
+                    "eol": orig_eol
+                })
+            except Exception:
+                pass
+
             lines[s:e] = chunks
             file_path.write_bytes("".join(lines).encode("utf-8"))
             return True
@@ -954,6 +969,20 @@ class VSCodeAdapter(EditorAdapter):
         return False
 
     def undo(self) -> bool:
+        # 1. Try code_patch_engine (semantic in-memory history & disk backup)
+        try:
+            from app.editor.code_patch_engine import code_patch_engine
+            active_file = self.get_active_file()
+            ok, _ = code_patch_engine.undo_last_patch(active_file)
+            if ok:
+                reverted_file = getattr(code_patch_engine, 'last_reverted_path', None) or active_file
+                if reverted_file:
+                    self.open_file(reverted_file)
+                return True
+        except Exception as e:
+            logger.debug(f"code_patch_engine undo check failed: {e}")
+
+        # 2. Try IPC
         if self.is_available():
             import uuid
             res = _ipc_post("/vscode/enqueue_command", {
@@ -961,13 +990,25 @@ class VSCodeAdapter(EditorAdapter):
             })
             if res.get("success"):
                 return True
+
+        # 3. Try .bak file on disk
         active_file = self.get_active_file()
         if active_file:
             bak = active_file.with_suffix(active_file.suffix + ".bak")
             if bak.is_file():
                 shutil.copy2(bak, active_file)
                 logger.info(f"Restored {active_file} from backup")
+                self.open_file(active_file)
                 return True
+
+        # 4. Try keyboard shortcut fallback in active editor
+        try:
+            import pyautogui
+            pyautogui.hotkey("ctrl", "z")
+            return True
+        except Exception:
+            pass
+
         return False
 
     def get_vscode_context(self) -> Dict[str, Any]:

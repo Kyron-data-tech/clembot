@@ -147,6 +147,19 @@ class AssistantOrchestrator:
 
     def process_command(self, raw_command: str) -> None:
         """Processes a validated user command."""
+        # Snapshot the foreground window RIGHT NOW — before we steal focus —
+        # so close/minimize/maximize act on the user's app, not Clembot.
+        try:
+            import win32gui as _w32
+            _hwnd = _w32.GetForegroundWindow()
+            _title = _w32.GetWindowText(_hwnd) if _hwnd else ""
+            # Only store if it's a real user window (not the desktop / taskbar)
+            if _hwnd and _title and "clembot" not in _title.lower():
+                self.router.windows.last_user_hwnd = _hwnd
+                self.router.windows.last_user_title = _title
+        except Exception:
+            pass
+
         self.set_state(AssistantState.PROCESSING)
         self.memory.add_user_turn(raw_command)
 
@@ -163,6 +176,14 @@ class AssistantOrchestrator:
             from app.editor.code_patch_engine import code_patch_engine
             last_file = getattr(self.memory, 'last_file', None)
             success, msg = code_patch_engine.undo_last_patch(last_file)
+            if success:
+                # Reload the reverted file in VS Code so the editor reflects the restored code
+                reverted_path = getattr(code_patch_engine, 'last_reverted_path', None) or last_file
+                if reverted_path:
+                    try:
+                        self.router.vscode.open_file(reverted_path)
+                    except Exception:
+                        pass
             self._reply_and_record(msg)
             self.set_state(AssistantState.LISTENING)
             return

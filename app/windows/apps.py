@@ -172,6 +172,96 @@ class WindowsAppCatalog:
         },
     }
 
+    # Known installation paths searched when shutil.which() returns None.
+    # Keys match the keys in BUILTIN_APPS.  Values are lists of candidate paths
+    # that may contain {LOCALAPPDATA}, {APPDATA}, {ProgramFiles}, {ProgramFiles86},
+    # {USERPROFILE} placeholders — expanded at runtime.
+    _KNOWN_PATHS: Dict[str, List[str]] = {
+        "chrome": [
+            r"{ProgramFiles86}\Google\Chrome\Application\chrome.exe",
+            r"{ProgramFiles}\Google\Chrome\Application\chrome.exe",
+            r"{LOCALAPPDATA}\Google\Chrome\Application\chrome.exe",
+        ],
+        "brave": [
+            r"{LOCALAPPDATA}\BraveSoftware\Brave-Browser\Application\brave.exe",
+            r"{ProgramFiles}\BraveSoftware\Brave-Browser\Application\brave.exe",
+            r"{ProgramFiles86}\BraveSoftware\Brave-Browser\Application\brave.exe",
+        ],
+        "edge": [
+            r"{ProgramFiles86}\Microsoft\Edge\Application\msedge.exe",
+            r"{ProgramFiles}\Microsoft\Edge\Application\msedge.exe",
+            r"{LOCALAPPDATA}\Microsoft\Edge\Application\msedge.exe",
+        ],
+        "firefox": [
+            r"{ProgramFiles}\Mozilla Firefox\firefox.exe",
+            r"{ProgramFiles86}\Mozilla Firefox\firefox.exe",
+        ],
+        "vscode": [
+            r"{LOCALAPPDATA}\Programs\Microsoft VS Code\Code.exe",
+            r"{ProgramFiles}\Microsoft VS Code\Code.exe",
+            r"{ProgramFiles86}\Microsoft VS Code\Code.exe",
+        ],
+        "pycharm": [
+            r"{ProgramFiles}\JetBrains\PyCharm Community Edition\bin\pycharm64.exe",
+            r"{ProgramFiles}\JetBrains\PyCharm Professional Edition\bin\pycharm64.exe",
+            r"{LOCALAPPDATA}\JetBrains\Toolbox\apps\PyCharm-C\ch-0\bin\pycharm64.exe",
+        ],
+        "spotify": [
+            r"{APPDATA}\Spotify\Spotify.exe",
+            r"{LOCALAPPDATA}\Microsoft\WindowsApps\Spotify.exe",
+        ],
+        "discord": [
+            r"{LOCALAPPDATA}\Discord\Update.exe",
+            r"{LOCALAPPDATA}\Discord\app-{version}\Discord.exe",
+        ],
+        "cursor": [
+            r"{LOCALAPPDATA}\Programs\cursor\Cursor.exe",
+            r"{APPDATA}\cursor\Cursor.exe",
+        ],
+    }
+
+    @classmethod
+    def _expand_known_paths(cls, key: str) -> Optional[str]:
+        """
+        Returns the first existing path from _KNOWN_PATHS[key] after expanding
+        environment-variable placeholders.  Returns None if none exists.
+        Templates may use {ProgramFiles}, {ProgramFiles86}, {LOCALAPPDATA},
+        {APPDATA}, {USERPROFILE}.  Any template containing unknown placeholders
+        (e.g. {version}) is treated as a glob pattern — the first match wins.
+        """
+        import glob as _glob
+        candidates = cls._KNOWN_PATHS.get(key, [])
+        env = {
+            "ProgramFiles":   os.environ.get("ProgramFiles",   r"C:\Program Files"),
+            "ProgramFiles86": os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+            "LOCALAPPDATA":   os.environ.get("LOCALAPPDATA",   str(Path.home() / "AppData" / "Local")),
+            "APPDATA":        os.environ.get("APPDATA",        str(Path.home() / "AppData" / "Roaming")),
+            "USERPROFILE":    os.environ.get("USERPROFILE",    str(Path.home())),
+        }
+        for template in candidates:
+            try:
+                path = template.format(**env)
+                if os.path.exists(path):
+                    return path
+            except KeyError:
+                # Template has an unknown placeholder like {version} — treat as glob
+                try:
+                    # Replace known placeholders first, then use * for unknown ones
+                    import re as _re
+                    partial = template
+                    for k, v in env.items():
+                        partial = partial.replace("{" + k + "}", v)
+                    # Replace remaining {anything} with * for glob
+                    glob_pattern = _re.sub(r"\{[^}]+\}", "*", partial)
+                    matches = sorted(_glob.glob(glob_pattern))
+                    if matches:
+                        return matches[-1]   # pick latest (highest version sorts last)
+                except Exception:
+                    pass
+        return None
+
+
+
     def __init__(self):
         self._lock = threading.Lock()
         self._catalog: Dict[str, Dict[str, Any]] = {}
@@ -214,17 +304,32 @@ class WindowsAppCatalog:
         """Indexes Start Menu shortcuts, UWP apps, Registry App Paths, and Local Programs."""
         new_catalog: Dict[str, Dict[str, Any]] = {}
 
-        # 1. Index built-in apps
+        # 1. Index built-in apps — resolve real exe path now so the catalog is usable
         for key, entry in self.BUILTIN_APPS.items():
             norm_key = self._normalize(key)
+            # Try to resolve to a real on-disk path
+            resolved_target: str = entry["executables"][0]
+            resolved_type: str = "system"
+            for exe in entry["executables"]:
+                found = shutil.which(exe)
+                if found:
+                    resolved_target = found
+                    resolved_type = "exe"
+                    break
+            if resolved_type != "exe":
+                known = self._expand_known_paths(key)
+                if known:
+                    resolved_target = known
+                    resolved_type = "exe"
             new_catalog[norm_key] = {
                 "name": entry["canonical"],
-                "type": "builtin",
-                "target": entry["executables"][0],
+                "type": resolved_type,
+                "target": resolved_target,
                 "executables": entry["executables"],
                 "process_names": entry["process_names"],
                 "aliases": entry["aliases"]
             }
+
 
         # 2. Index Start Menu Shortcuts (.lnk) with target resolution
         self._index_shortcuts(new_catalog)
@@ -350,13 +455,29 @@ class WindowsAppCatalog:
         # 2. Check built-in mappings
         for key, entry in self.BUILTIN_APPS.items():
             if clean_key == self._normalize(key) or clean_key == self._normalize(entry["canonical"]) or any(clean_key == self._normalize(a) for a in entry["aliases"]):
+                # a) shutil.which — works when app is in PATH
                 for exe in entry["executables"]:
                     which_path = shutil.which(exe)
                     if which_path:
                         return which_path, "exe"
-                    if exe in ["calc.exe", "notepad.exe", "explorer.exe", "cmd.exe", "powershell.exe", "wt.exe", "taskmgr.exe", "control.exe"]:
+
+                # b) Known fixed install paths (e.g. Chrome in Program Files)
+                known = self._expand_known_paths(key)
+                if known:
+                    logger.debug(f"Resolved '{spoken_name}' via known path: {known}")
+                    return known, "exe"
+
+                # c) Windows system built-ins that are always launchable by name
+                SYSTEM_BUILTINS = {"calc.exe", "notepad.exe", "explorer.exe",
+                                   "cmd.exe", "powershell.exe", "wt.exe",
+                                   "taskmgr.exe", "control.exe", "mspaint.exe"}
+                for exe in entry["executables"]:
+                    if exe.lower() in SYSTEM_BUILTINS:
                         return exe, "system"
+
+                # d) Last resort: bare exe name via shell (may fail if not in PATH)
                 return entry["executables"][0], "system"
+
 
         # 3. Direct lookup in catalog
         with self._lock:

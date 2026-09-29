@@ -52,6 +52,7 @@ class CodePatchEngine:
 
     def __init__(self):
         self._undo_history: List[Dict[str, Any]] = []
+        self.last_reverted_path: Optional[Path] = None
 
     # ------------------------------------------------------------------
     # EOL & File I/O
@@ -404,18 +405,43 @@ class CodePatchEngine:
     # Undo Support
     # ------------------------------------------------------------------
 
-    def undo_last_patch(self, file_path: Optional[Path] = None) -> Tuple[bool, str]:
+    def undo_last_patch(self, file_path: Optional[Any] = None) -> Tuple[bool, str]:
         """
         Reverts the last applied patch from the in-memory undo stack or .bak backup.
         """
+        self.last_reverted_path = None
+        target_path: Optional[Path] = None
+        if file_path:
+            try:
+                target_path = Path(file_path)
+            except Exception:
+                target_path = None
+
         if self._undo_history:
             # If a specific file is requested, find the most recent patch for it
             target_entry = None
-            if file_path:
+            if target_path:
                 for i in range(len(self._undo_history) - 1, -1, -1):
-                    if self._undo_history[i]["path"].resolve() == file_path.resolve():
-                        target_entry = self._undo_history.pop(i)
-                        break
+                    entry_path = self._undo_history[i]["path"]
+                    try:
+                        if entry_path.resolve() == target_path.resolve():
+                            target_entry = self._undo_history.pop(i)
+                            break
+                    except Exception:
+                        if str(entry_path).lower() == str(target_path).lower():
+                            target_entry = self._undo_history.pop(i)
+                            break
+
+            # If not matched to specific file but specific file had no entry, check if that file has .bak
+            if not target_entry and target_path:
+                bak = target_path.with_suffix(target_path.suffix + ".bak")
+                if bak.is_file():
+                    shutil.copy2(bak, target_path)
+                    self.last_reverted_path = target_path
+                    logger.info(f"Restored {target_path.name} from .bak file.")
+                    return True, f"Reverted {target_path.name} from backup."
+
+            # Otherwise revert the most recent entry from the global undo history
             if not target_entry and self._undo_history:
                 target_entry = self._undo_history.pop()
 
@@ -424,16 +450,18 @@ class CodePatchEngine:
                 orig = target_entry["original_content"]
                 eol = target_entry["eol"]
                 self.write_file_preserving_eol(path, orig, eol)
+                self.last_reverted_path = path
                 logger.info(f"Reverted last patch on {path.name} from undo stack.")
                 return True, f"Reverted previous code change in {path.name}."
 
         # Fallback to .bak file on disk
-        if file_path:
-            bak = file_path.with_suffix(file_path.suffix + ".bak")
+        if target_path:
+            bak = target_path.with_suffix(target_path.suffix + ".bak")
             if bak.is_file():
-                shutil.copy2(bak, file_path)
-                logger.info(f"Restored {file_path.name} from .bak file.")
-                return True, f"Reverted {file_path.name} from backup."
+                shutil.copy2(bak, target_path)
+                self.last_reverted_path = target_path
+                logger.info(f"Restored {target_path.name} from .bak file.")
+                return True, f"Reverted {target_path.name} from backup."
 
         return False, "No previous code changes to undo."
 

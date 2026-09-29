@@ -59,15 +59,16 @@ class FastCommandRouter:
             "redo": AgentPlan(reply="Redone.", actions=[AgentAction(type="redo")]),
             "save": AgentPlan(reply="Saved.", actions=[AgentAction(type="save")]),
 
-            # Browser tabs
-            "new tab": AgentPlan(reply="New tab.", actions=[AgentAction(type="browser_new_tab")]),
+            # Browser tabs & navigation
+            "new tab": AgentPlan(reply="Opening new tab.", actions=[AgentAction(type="browser_new_tab")]),
+            "open a new tab": AgentPlan(reply="Opening new tab.", actions=[AgentAction(type="browser_new_tab")]),
+            "open new tab": AgentPlan(reply="Opening new tab.", actions=[AgentAction(type="browser_new_tab")]),
+            "create a new tab": AgentPlan(reply="Opening new tab.", actions=[AgentAction(type="browser_new_tab")]),
+            "create new tab": AgentPlan(reply="Opening new tab.", actions=[AgentAction(type="browser_new_tab")]),
             "close tab": AgentPlan(reply="Closing tab.", actions=[AgentAction(type="vscode_close_file")]),
             "close this tab": AgentPlan(reply="Closing tab.", actions=[AgentAction(type="vscode_close_file")]),
             "close current tab": AgentPlan(reply="Closing current tab.", actions=[AgentAction(type="vscode_close_file")]),
             "close active tab": AgentPlan(reply="Closing active tab.", actions=[AgentAction(type="vscode_close_file")]),
-            "next tab": AgentPlan(reply="Next tab.", actions=[AgentAction(type="browser_next_tab")]),
-
-            # File / Editor tab closing
             "close this file": AgentPlan(reply="Closing active file in VS Code.", actions=[AgentAction(type="vscode_close_file")]),
             "close the file": AgentPlan(reply="Closing active file in VS Code.", actions=[AgentAction(type="vscode_close_file")]),
             "close file": AgentPlan(reply="Closing active file in VS Code.", actions=[AgentAction(type="vscode_close_file")]),
@@ -76,11 +77,29 @@ class FastCommandRouter:
             "close file in vscode": AgentPlan(reply="Closing file in VS Code.", actions=[AgentAction(type="vscode_close_file")]),
             "close vscode file": AgentPlan(reply="Closing file in VS Code.", actions=[AgentAction(type="vscode_close_file")]),
             "close file vscode": AgentPlan(reply="Closing file in VS Code.", actions=[AgentAction(type="vscode_close_file")]),
+            "next tab": AgentPlan(reply="Next tab.", actions=[AgentAction(type="browser_next_tab")]),
             "switch tab": AgentPlan(reply="Next tab.", actions=[AgentAction(type="browser_next_tab")]),
             "previous tab": AgentPlan(reply="Previous tab.", actions=[AgentAction(type="browser_prev_tab")]),
             "reopen tab": AgentPlan(reply="Reopened tab.", actions=[AgentAction(type="browser_reopen_tab")]),
             "reload": AgentPlan(reply="Reloading.", actions=[AgentAction(type="browser_reload")]),
             "refresh": AgentPlan(reply="Reloading.", actions=[AgentAction(type="browser_reload")]),
+
+            # Browser Search History & Downloads
+            "show search history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
+            "show browser search history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
+            "show browser history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
+            "show history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
+            "open search history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
+            "open browser history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
+            "open history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
+            "search history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
+            "browser history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
+            "show downloads folder": AgentPlan(reply="Opening downloads.", actions=[AgentAction(type="browser_show_downloads")]),
+            "show download folder": AgentPlan(reply="Opening downloads.", actions=[AgentAction(type="browser_show_downloads")]),
+            "show browser downloads": AgentPlan(reply="Opening downloads.", actions=[AgentAction(type="browser_show_downloads")]),
+            "show browser download folder": AgentPlan(reply="Opening downloads.", actions=[AgentAction(type="browser_show_downloads")]),
+            "browser downloads": AgentPlan(reply="Opening downloads.", actions=[AgentAction(type="browser_show_downloads")]),
+            "open browser downloads": AgentPlan(reply="Opening downloads.", actions=[AgentAction(type="browser_show_downloads")]),
 
             # Standard Folders
             "open downloads": AgentPlan(reply="Opening Downloads.", actions=[AgentAction(type="open_folder", path="Downloads")]),
@@ -124,10 +143,120 @@ class FastCommandRouter:
             "run this python file": AgentPlan(reply="Running Python file.", actions=[AgentAction(type="vscode_run_code")]),
             "run code": AgentPlan(reply="Running code.", actions=[AgentAction(type="vscode_run_code")]),
             "undo code change": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "undo the code change": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "undo change": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "undo the change": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "undo last change": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "undo the last change": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "undo edit": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "undo the edit": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "undo last edit": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "undo the last edit": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "revert change": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "revert the change": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "revert code change": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "revert the code change": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "revert edit": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "revert the edit": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "revert last edit": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "revert that": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
+            "change it back": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
         }
 
         if normalized in exact_matches:
             return exact_matches[normalized]
+
+        # Code Undo / Revert patterns — matches everything not caught by exact_matches above
+        undo_code_match = re.search(
+            r'^(?:'
+            r'(?:please\s+)?(?:undo|revert)(?:\s+(?:the|that|this|my|it))?(?:\s+(?:last|previous))?(?:\s+(?:code\s+)?(?:change|edit|modification)s?)?'
+            r'|change\s+it\s+back'
+            r'|take\s+it\s+back'
+            r'|put\s+it\s+back'
+            r')[.!?]*$',
+            lower
+        )
+        if undo_code_match and lower.strip(".!? "):
+            return AgentPlan(
+                reply="Reverting last code change.",
+                actions=[AgentAction(type="vscode_undo")]
+            )
+
+        # 1b. Browser Tabs & History Patterns (Chrome & Brave)
+        tab_num_map = {
+            "one": 1, "first": 1, "1st": 1,
+            "two": 2, "second": 2, "2nd": 2,
+            "three": 3, "third": 3, "3rd": 3,
+            "four": 4, "fourth": 4, "4th": 4,
+            "five": 5, "fifth": 5, "5th": 5,
+            "six": 6, "sixth": 6, "6th": 6,
+            "seven": 7, "seventh": 7, "7th": 7,
+            "eight": 8, "eighth": 8, "8th": 8,
+            "nine": 9, "ninth": 9, "9th": 9,
+            "ten": 10, "tenth": 10, "10th": 10,
+        }
+
+        # Browser switch tab number (e.g. "open tab number 4", "switch to tab 4", "fourth tab", "in brave open tab number 4")
+        tab_match = (
+            re.search(r'^(?:(?:in|on)\s+(chrome|brave)\s+)?(?:open|switch\s+to|go\s+to)\s+(?:the\s+)?tab(?:\s+number)?\s+(\w+)(?:\s+(?:in|on)\s+(chrome|brave))?[.!?]*$', lower) or
+            re.search(r'^(?:(?:in|on)\s+(chrome|brave)\s+)?tab(?:\s+number)?\s+(\w+)(?:\s+(?:in|on)\s+(chrome|brave))?[.!?]*$', lower) or
+            re.search(r'^(?:(?:in|on)\s+(chrome|brave)\s+)?(?:(?:open|switch\s+to|go\s+to)\s+)?(?:the\s+)?(\w+)\s+tab(?:\s+(?:in|on)\s+(chrome|brave))?[.!?]*$', lower)
+        )
+        if tab_match:
+            groups = tab_match.groups()
+            b_name = tab_match.group(1) if tab_match.group(1) in ['chrome', 'brave'] else None
+            if not b_name and len(groups) >= 3 and tab_match.group(3) in ['chrome', 'brave']:
+                b_name = tab_match.group(3)
+            raw_token = tab_match.group(2) if len(groups) >= 2 and tab_match.group(2) else ''
+            if not raw_token or raw_token in ['chrome', 'brave']:
+                raw_token = tab_match.group(1)
+            t_num = int(raw_token) if (raw_token and raw_token.isdigit()) else tab_num_map.get((raw_token or "").lower())
+            if t_num and t_num >= 1:
+                reply_browser = f" in {b_name.capitalize()}" if b_name else ""
+                return AgentPlan(
+                    reply=f"Opening tab {t_num}{reply_browser}.",
+                    actions=[AgentAction(type="browser_switch_tab_number", amount=t_num, app=b_name)]
+                )
+
+        # Browser New Tab
+        new_tab_match = (
+            re.search(r'^(?:(?:in|on)\s+(chrome|brave)\s+)?(?:open|create|launch)\s+(?:a\s+)?new\s+tab(?:\s+(?:in|on)\s+(chrome|brave))?[.!?]*$', lower) or
+            re.search(r'^(?:(?:in|on)\s+(chrome|brave)\s+)?new\s+tab(?:\s+(?:in|on)\s+(chrome|brave))?[.!?]*$', lower)
+        )
+        if new_tab_match:
+            b_name = new_tab_match.group(1) or (new_tab_match.group(2) if len(new_tab_match.groups()) >= 2 else None)
+            reply_name = f" in {b_name.capitalize()}" if b_name else ""
+            return AgentPlan(
+                reply=f"Opening new tab{reply_name}.",
+                actions=[AgentAction(type="browser_new_tab", app=b_name)]
+            )
+
+        # Browser Search History
+        history_match = (
+            re.search(r'^(?:(?:in|on)\s+(chrome|brave)\s+)?(?:show|open|display)\s+(?:the\s+)?(?:browser\s+)?(?:search\s+)?history(?:\s+(?:in|on)\s+(chrome|brave))?[.!?]*$', lower) or
+            re.search(r'^(?:(?:in|on)\s+(chrome|brave)\s+)?(?:browser\s+)?search\s+history(?:\s+(?:in|on)\s+(chrome|brave))?[.!?]*$', lower) or
+            re.search(r'^(?:(?:in|on)\s+(chrome|brave)\s+)?browser\s+history(?:\s+(?:in|on)\s+(chrome|brave))?[.!?]*$', lower)
+        )
+        if history_match:
+            b_name = history_match.group(1) or (history_match.group(2) if len(history_match.groups()) >= 2 else None)
+            reply_name = f" in {b_name.capitalize()}" if b_name else ""
+            return AgentPlan(
+                reply=f"Opening search history{reply_name}.",
+                actions=[AgentAction(type="browser_show_history", app=b_name)]
+            )
+
+        # Browser Downloads Folder
+        downloads_match = (
+            re.search(r'^(?:(?:in|on)\s+(chrome|brave)\s+)?(?:show|open|display)\s+(?:the\s+)?(?:browser\s+)?downloads?(?:\s+folder)?(?:\s+(?:in|on)\s+(chrome|brave))?[.!?]*$', lower) or
+            re.search(r'^(?:(?:in|on)\s+(chrome|brave)\s+)?browser\s+downloads?(?:\s+folder)?(?:\s+(?:in|on)\s+(chrome|brave))?[.!?]*$', lower)
+        )
+        if downloads_match:
+            b_name = downloads_match.group(1) or (downloads_match.group(2) if len(downloads_match.groups()) >= 2 else None)
+            reply_name = f" in {b_name.capitalize()}" if b_name else ""
+            return AgentPlan(
+                reply=f"Opening downloads{reply_name}.",
+                actions=[AgentAction(type="browser_show_downloads", app=b_name)]
+            )
 
         # 2. Directory inspection / What's inside?
         # e.g. "What files are in Downloads?", "What is inside Downloads?", "Show me the files in this folder"
@@ -571,6 +700,21 @@ class FastCommandRouter:
         close_app = re.search(r'^(?:close|quit|exit)\s+(.*?)$', lower)
         if close_app:
             target_app = close_app.group(1).strip()
+
+            # Vague / context-dependent targets → close the foreground window (Alt+F4)
+            _VAGUE_CLOSE = {
+                "it", "this", "that", "app", "application", "the app",
+                "the application", "window", "the window", "current window",
+                "active window", "this app", "that app", "current app",
+                "active app", "the current app", "the active app",
+                "current application", "active application",
+            }
+            if target_app in _VAGUE_CLOSE:
+                return AgentPlan(
+                    reply="Closing the current window.",
+                    actions=[AgentAction(type="window_close")]
+                )
+
             # If target looks like a file name
             if re.search(r'\.[a-zA-Z0-9]{1,5}$', target_app):
                 return AgentPlan(

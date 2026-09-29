@@ -11,7 +11,30 @@ class WindowsWindowManager:
     """
     Controls Windows window placement, state (minimize/maximize/restore), and snapping
     using native Windows User32 APIs.
+
+    `last_user_hwnd` / `last_user_title` are set by the orchestrator at the very
+    start of every command — capturing the foreground window BEFORE Clembot steals
+    focus — so close/minimize/maximize always target the user's real app.
     """
+
+    def __init__(self):
+        self.last_user_hwnd: int = 0
+        self.last_user_title: str = ""
+
+    def _resolve_hwnd(self) -> int:
+        """
+        Returns the best available HWND:
+        1. last_user_hwnd captured just before this command (preferred)
+        2. current foreground window (fallback)
+        """
+        if self.last_user_hwnd:
+            try:
+                # Validate the handle is still alive
+                if win32gui.IsWindow(self.last_user_hwnd):
+                    return self.last_user_hwnd
+            except Exception:
+                pass
+        return win32gui.GetForegroundWindow()
 
     @staticmethod
     def get_focused_hwnd() -> int:
@@ -32,45 +55,50 @@ class WindowsWindowManager:
         return rect  # (left, top, right, bottom)
 
     def minimize_current(self) -> str:
-        """Minimizes the currently focused window."""
-        hwnd = self.get_focused_hwnd()
+        """Minimizes the user's active window (captured before Clembot took focus)."""
+        hwnd = self._resolve_hwnd()
         if hwnd:
+            title = win32gui.GetWindowText(hwnd) or "window"
             win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
-            return "Window minimized."
+            return f"Minimized {title}."
         return "No active window to minimize."
 
     def maximize_current(self) -> str:
-        """Maximizes the currently focused window."""
-        hwnd = self.get_focused_hwnd()
+        """Maximizes the user's active window."""
+        hwnd = self._resolve_hwnd()
         if hwnd:
+            title = win32gui.GetWindowText(hwnd) or "window"
             win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
-            return "Window maximized."
+            return f"Maximized {title}."
         return "No active window to maximize."
 
     def restore_current(self) -> str:
-        """Restores the currently focused window."""
-        hwnd = self.get_focused_hwnd()
+        """Restores the user's active window to its normal size."""
+        hwnd = self._resolve_hwnd()
         if hwnd:
+            title = win32gui.GetWindowText(hwnd) or "window"
             win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-            return "Window restored."
+            return f"Restored {title}."
         return "No active window to restore."
 
     def close_current(self) -> str:
-        """Closes the currently focused window gracefully."""
-        hwnd = self.get_focused_hwnd()
+        """Closes the user's active window gracefully (WM_CLOSE)."""
+        hwnd = self._resolve_hwnd()
         if hwnd:
             title = win32gui.GetWindowText(hwnd) or "current application"
             win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+            # Clear the stored handle — window is gone
+            self.last_user_hwnd = 0
+            self.last_user_title = ""
             return f"Closed {title}."
         return "No active window to close."
 
     def snap_left(self) -> str:
-        """Snaps the focused window to the left half of the monitor."""
-        hwnd = self.get_focused_hwnd()
+        """Snaps the user's active window to the left half of the monitor."""
+        hwnd = self._resolve_hwnd()
         if not hwnd:
             return "No active window to move."
 
-        # Ensure restored before positioning
         win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
         left, top, right, bottom = self.get_work_area()
         width = (right - left) // 2
@@ -80,8 +108,8 @@ class WindowsWindowManager:
         return "Snapped window to left half."
 
     def snap_right(self) -> str:
-        """Snaps the focused window to the right half of the monitor."""
-        hwnd = self.get_focused_hwnd()
+        """Snaps the user's active window to the right half of the monitor."""
+        hwnd = self._resolve_hwnd()
         if not hwnd:
             return "No active window to move."
 
@@ -94,8 +122,8 @@ class WindowsWindowManager:
         return "Snapped window to right half."
 
     def center_window(self) -> str:
-        """Centers the focused window on screen."""
-        hwnd = self.get_focused_hwnd()
+        """Centers the user's active window on screen."""
+        hwnd = self._resolve_hwnd()
         if not hwnd:
             return "No active window to center."
 

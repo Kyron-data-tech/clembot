@@ -1,40 +1,57 @@
-# Core Windows & System Integration
-pywin32>=310
-pyautogui>=0.9.54
-pyperclip>=1.8.2
-send2trash>=1.8.0
-pystray>=0.19.5
-sounddevice>=0.5.0
-pillow>=10.0.0
-psutil>=5.9.0
-pycaw>=20240000
-uiautomation>=2.0.0
+# =============================================================================
+# Clembot — Python Dependencies
+# Windows 10 / 11 only.  Install inside a virtual environment:
+#
+#   python -m venv venv
+#   .\venv\Scripts\Activate.ps1
+#   pip install -r requirements.txt
+# =============================================================================
 
-# Speech & Text-to-Speech
-SpeechRecognition>=3.14.0
-pyttsx3>=2.90
+# ─── Core Windows & System Integration ───────────────────────────────────────
+pywin32>=312              # Win32 API: window management, registry, process info
+pyautogui>=0.9.54         # Keyboard & mouse automation (browser hotkeys, etc.)
+pyperclip>=1.8.2          # Clipboard read/write
+send2trash>=1.8.0         # Safe file delete → Windows Recycle Bin
+pystray>=0.19.5           # Windows System Tray icon
+sounddevice>=0.5.0        # Low-latency audio capture (microphone input)
+pillow>=10.0.0            # Image processing (screenshots, GUI assets)
+psutil>=5.9.0             # Process enumeration (app detection, browser guard)
+pycaw>=20240000           # Windows Core Audio API (volume control)
+uiautomation>=2.0.0       # UI Automation (browser tab detection, count_tabs)
+comtypes>=1.4.0           # COM interface for Explorer window detection
 
-# Fuzzy Matching & Phonetics (Speech Normalizer + Wake Word)
-rapidfuzz>=3.0.0
-jellyfish>=1.0.0
+# ─── Speech Recognition (STT) ────────────────────────────────────────────────
+SpeechRecognition>=3.14.0 # Google Cloud STT (default provider)
+audioop-lts>=0.2.0        # Python 3.13+ compatibility shim for audioop
 
-# Modern GUI
-customtkinter>=6.0.0
+# ─── Text-to-Speech (TTS) ────────────────────────────────────────────────────
+pyttsx3>=2.90             # Offline Windows SAPI 5 TTS engine
 
-# Configuration, Models & IPC Server
-pydantic>=2.0.0
-python-dotenv>=1.0.0
-fastapi>=0.110.0
-uvicorn>=0.30.0
-httpx>=0.27.0
+# ─── Fuzzy Matching & Phonetics ──────────────────────────────────────────────
+rapidfuzz>=3.0.0          # Fast fuzzy string matching (app catalog, wake word)
+jellyfish>=1.0.0          # Phonetic algorithms (Levenshtein, soundex — wake word)
 
-# Optional AI Providers
-google-genai>=1.0.0
-openai>=1.30.0
+# ─── Modern GUI ──────────────────────────────────────────────────────────────
+customtkinter>=6.0.0      # Fluent dark/light themed Windows GUI
 
-# Optional Offline STT (set CLEMBOT_STT_PROVIDER=whisper in .env to enable)
-# faster-whisper runs 100% locally with no API key; downloads model on first use (~40MB)
+# ─── Configuration, Data Models & IPC Server ─────────────────────────────────
+pydantic>=2.0.0           # Structured action plans + settings validation
+python-dotenv>=1.0.0      # .env file loader
+fastapi>=0.110.0          # Local IPC server (http://127.0.0.1:25362)
+uvicorn>=0.30.0           # ASGI server for FastAPI
+httpx>=0.27.0             # Async HTTP client (IPC requests to VS Code extension)
+
+# ─── AI Providers (Optional — at least one recommended) ─────────────────────
+# Leave all commented out to use the built-in offline local heuristic planner.
+
+google-genai>=1.0.0       # Google Gemini API  (set CLEMBOT_AI_PROVIDER=gemini)
+openai>=1.30.0            # OpenAI API         (set CLEMBOT_AI_PROVIDER=openai)
+# ollama is accessed via HTTP — no pip package needed; install from https://ollama.com
+
+# ─── Offline STT — Whisper (Optional) ────────────────────────────────────────
+# Runs 100% locally with no API key. Downloads model on first use (~40 MB).
+# Enable by setting CLEMBOT_STT_PROVIDER=whisper in your .env file.
 faster-whisper>=1.2.1
 
-# Packaging (Optional for building .exe)
+# ─── Packaging (Optional — only needed to build a standalone .exe) ────────────
 pyinstaller>=6.0.0

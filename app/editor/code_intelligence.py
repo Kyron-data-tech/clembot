@@ -335,8 +335,16 @@ class CodeIntelligenceEngine:
             shutil.copy2(target, bak_path)
 
             from app.editor.code_patch_engine import code_patch_engine
-            _, eol = code_patch_engine.read_file_with_eol(target)
+            orig_text, eol = code_patch_engine.read_file_with_eol(target)
             code_patch_engine.write_file_preserving_eol(target, proposal.proposed_code, eol)
+            code_patch_engine._undo_history.append({
+                "path": target,
+                "original_content": orig_text,
+                "modified_content": proposal.proposed_code,
+                "diff": proposal.diff,
+                "explanation": proposal.explanation,
+                "eol": eol
+            })
             logger.info(f"Successfully applied code edit to {target}. Backup at {bak_path.name}")
             return True
         except Exception as e:

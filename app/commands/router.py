@@ -322,24 +322,69 @@ class ActionRouter:
                 return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg)
 
             elif act_type == "browser_new_tab":
-                msg = self.browser.new_tab()
-                return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg)
+                ok, msg = self.browser.open_new_tab(preferred_browser=action.app)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
+
+            elif act_type == "browser_switch_tab_number":
+                tab_num = action.amount or action.line_number or 1
+                ok, msg = self.browser.switch_to_tab_number(tab_num, preferred_browser=action.app)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
+
+            elif act_type == "browser_show_history":
+                ok, msg = self.browser.show_history(preferred_browser=action.app)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
+
+            elif act_type == "browser_show_downloads":
+                ok, msg = self.browser.show_downloads(preferred_browser=action.app)
+                if not ok and msg == "NOT_DISPLAYED":
+                    # Fallback to opening Windows Downloads folder if no browser is displayed
+                    target_p = WindowsPathResolver.resolve("Downloads", context_base=context_base)
+                    if target_p and target_p.exists():
+                        import os
+                        os.startfile(str(target_p))
+                        return ActionResult(action_id=action.id, action_type="open_folder", success=True, message="Opening Downloads folder.")
+                    return ActionResult(action_id=action.id, action_type=act_type, success=False, message="Chrome or Brave is not currently displayed.")
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
 
             elif act_type == "browser_close_tab":
-                msg = self.browser.close_tab()
-                return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg)
+                ok, msg = self.browser.close_tab(preferred_browser=action.app)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
 
             elif act_type == "browser_next_tab":
-                msg = self.browser.next_tab()
-                return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg)
+                ok, msg = self.browser.next_tab(preferred_browser=action.app)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
 
             elif act_type == "browser_prev_tab":
-                msg = self.browser.previous_tab()
-                return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg)
+                ok, msg = self.browser.previous_tab(preferred_browser=action.app)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
+
+            elif act_type == "browser_reopen_tab":
+                ok, msg = self.browser.reopen_tab(preferred_browser=action.app)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
 
             elif act_type == "browser_reload":
-                msg = self.browser.reload()
-                return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg)
+                ok, msg = self.browser.reload(preferred_browser=action.app)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
+
+            elif act_type == "browser_bookmark":
+                ok, msg = self.browser.bookmark_page(preferred_browser=action.app)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
+
+            elif act_type == "browser_zoom_in":
+                ok, msg = self.browser.zoom_in(preferred_browser=action.app)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
+
+            elif act_type == "browser_zoom_out":
+                ok, msg = self.browser.zoom_out(preferred_browser=action.app)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
+
+            elif act_type == "browser_zoom_reset":
+                ok, msg = self.browser.zoom_reset(preferred_browser=action.app)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
+
+            elif act_type == "browser_incognito":
+                ok, msg = self.browser.new_incognito_window(preferred_browser=action.app)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
 
             # 4. System & Clipboard
             elif act_type == "screenshot":
@@ -375,6 +420,19 @@ class ActionRouter:
                 return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Selected all.")
 
             elif act_type == "undo":
+                # Try code-level undo first (reverts semantic patch or line-edit on the active file)
+                try:
+                    from app.editor.code_patch_engine import code_patch_engine
+                    active_f = self.vscode.get_active_file()
+                    ok, undo_msg = code_patch_engine.undo_last_patch(active_f)
+                    if ok:
+                        reverted = getattr(code_patch_engine, 'last_reverted_path', None) or active_f
+                        if reverted:
+                            self.vscode.open_file(reverted)
+                        return ActionResult(action_id=action.id, action_type=act_type, success=True, message=undo_msg)
+                except Exception:
+                    pass
+                # Fallback: system-level undo (Ctrl+Z in focused app)
                 self.input_adapter.undo()
                 return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Undone.")
 
@@ -459,7 +517,11 @@ class ActionRouter:
 
             elif act_type == "vscode_undo":
                 success = self.vscode.undo()
-                return ActionResult(action_id=action.id, action_type=act_type, success=success, message="Reverted code edit.")
+                from app.editor.code_patch_engine import code_patch_engine as _cpe
+                reverted_f = getattr(_cpe, 'last_reverted_path', None)
+                msg = (f"Reverted code change in {reverted_f.name}." if reverted_f
+                       else "Reverted code edit.")
+                return ActionResult(action_id=action.id, action_type=act_type, success=success, message=msg)
 
             elif act_type == "vscode_read_line":
                 line_num = action.line_number or 1
@@ -793,9 +855,35 @@ class ActionRouter:
         """
         Write lines back to disk using raw bytes — bypasses Python's text-mode
         \n→\r\n translation on Windows, which would double every \r\n ending.
+
+        Also records the pre-write state in code_patch_engine's undo stack so
+        voice commands like 'undo', 'undo change', 'revert edit' can restore
+        the file even when the change was made via a REPLACE_IN_LINE / DELETE_LINE
+        / INSERT token (not a full vscode_patch action).
         """
         import shutil as _sh
         bak = path.with_suffix(path.suffix + ".bak")
+        # Capture original content for undo stack BEFORE overwriting
+        try:
+            from app.editor.code_patch_engine import code_patch_engine as _cpe
+            _orig_raw = path.read_bytes()
+            try:
+                _orig_text = _orig_raw.decode("utf-8")
+            except UnicodeDecodeError:
+                _orig_text = _orig_raw.decode("cp1252", errors="replace")
+            _crlf = _orig_text.count("\r\n")
+            _lf = _orig_text.count("\n") - _crlf
+            _orig_eol = "\r\n" if _crlf >= _lf else "\n"
+            _cpe._undo_history.append({
+                "path": path,
+                "original_content": _orig_text,
+                "modified_content": "".join(lines),
+                "diff": "",
+                "explanation": f"Line edit in {path.name}",
+                "eol": _orig_eol,
+            })
+        except Exception:
+            pass
         _sh.copy2(path, bak)
         # write_bytes preserves whatever endings are already in the lines
         path.write_bytes("".join(lines).encode("utf-8"))

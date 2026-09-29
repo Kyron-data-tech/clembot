@@ -143,7 +143,24 @@ class ConversationalMemory:
         resolved = command
 
         # 1. Direct undo commands
-        if re.search(r'\b(?:undo\s+that|undo\s+(?:the\s+)?last\s+(?:code\s+)?change|change\s+it\s+back|revert\s+that|revert\s+(?:the\s+)?(?:last\s+)?(?:code\s+)?change|pehle\s+jaisa\s+kar\s+do|jo\s+abhi\s+change\s+kiya\s+tha\s+usko\s+undo\s+karo)\b', command, re.IGNORECASE):
+        undo_pattern = (
+            r'\b(?:'
+            r'undo(?:\s+(?:that|this|it))?'
+            r'|undo\s+(?:the\s+|that\s+|this\s+|my\s+)?(?:last\s+|previous\s+)?(?:code\s+)?(?:change|edit|modification)s?'
+            r'|revert(?:\s+(?:that|this|it))?'
+            r'|revert\s+(?:the\s+|that\s+|this\s+|my\s+)?(?:last\s+|previous\s+)?(?:code\s+)?(?:change|edit|modification)s?'
+            r'|change\s+it\s+back'
+            r'|take\s+it\s+back'
+            r'|put\s+it\s+back'
+            r'|pehle\s+jaisa\s+kar\s*do'
+            r'|jo\s+abhi\s+change\s+kiya\s+tha(?:\s+usko)?\s+undo\s+karo'
+            r'|jo\s+change\s+kiya\s+tha(?:\s+usko)?\s+undo\s+karo'
+            r'|pichh?la\s+change\s+undo\s+karo'
+            r'|edit\s+undo\s+karo'
+            r'|code\s+(?:change\s+)?undo\s+karo'
+            r')\b'
+        )
+        if re.search(undo_pattern, command, re.IGNORECASE):
             return "undo"
 
         # 2. Resolve "there" or "in there" to the last visited folder

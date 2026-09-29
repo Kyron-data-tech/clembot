@@ -26,6 +26,13 @@ class AIPromptBuilder:
         # Web & Browser
         "web_search", "open_url", "browser_new_tab", "browser_close_tab",
         "browser_next_tab", "browser_prev_tab", "browser_reload",
+        "browser_reopen_tab",
+        "browser_switch_tab_number",   # amount = tab number (1-based)
+        "browser_show_history",        # open Ctrl+H (search history)
+        "browser_show_downloads",      # open Ctrl+J (browser downloads)
+        "browser_bookmark",            # Ctrl+D
+        "browser_zoom_in", "browser_zoom_out", "browser_zoom_reset",
+        "browser_incognito",           # open incognito/private window
         # VS Code Navigation
         "vscode_jump_line", "vscode_open_file", "vscode_close_file", "vscode_read_line",
         # VS Code Code Editing (legacy token-based, still supported)
@@ -85,7 +92,12 @@ Standard Windows/File/Browser actions:
   window_minimize, window_maximize, window_restore, window_close
   window_snap_left, window_snap_right, window_center, show_desktop
   web_search (query, scope), open_url (url)
-  browser_new_tab, browser_close_tab, browser_next_tab, browser_prev_tab, browser_reload
+  browser_new_tab [app=chrome|brave], browser_close_tab, browser_next_tab, browser_prev_tab
+  browser_reopen_tab, browser_reload
+  browser_switch_tab_number (amount=N, app=chrome|brave) — switch to tab N (only if browser is displayed)
+  browser_show_history [app=chrome|brave]    — opens Ctrl+H search history (only if browser is displayed)
+  browser_show_downloads [app=chrome|brave]  — opens Ctrl+J downloads tab (only if browser is displayed)
+  browser_bookmark, browser_zoom_in, browser_zoom_out, browser_zoom_reset, browser_incognito
   screenshot, volume_up, volume_down, volume_mute
   copy, paste, clear_clipboard, select_all, undo, redo, save
 

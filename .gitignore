@@ -1,8 +1,8 @@
 # =============================================================================
-# Clembot .gitignore - Clean Repository Configuration for Git & GitHub
+# Clembot .gitignore — Clean Repository for GitHub
 # =============================================================================
 
-# --- Secrets & Sensitive Data (NEVER COMMIT) ---
+# ─── Secrets & API Keys (NEVER commit these) ─────────────────────────────────
 .env
 .env.*
 !.env.example
@@ -10,17 +10,28 @@
 *.pem
 *.key
 *.cert
+secrets.json
+credentials.json
 
-# --- Logs & Runtime State ---
+# ─── Runtime & State Files ────────────────────────────────────────────────────
 *.log
 clembot.log
 .deps_installed
+
+# App index cache (rebuilt automatically on startup)
 app_index.json
+**/app_index.json
+
+# Code backup files created by the patch engine
 *.bak
+
+# Temp files
 *.tmp
 *.temp
+*.swp
+*~
 
-# --- Python Bytecode & Caches ---
+# ─── Python Bytecode & Caches ─────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -31,12 +42,19 @@ __pycache__/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+.pytype/
+*.pyo
 
-# --- Python Environments & Packages ---
-.venv/
+# ─── Virtual Environments ─────────────────────────────────────────────────────
+# venv is intentionally excluded — users create their own from requirements.txt
 venv/
+.venv/
 env/
 ENV/
+Env/
+.env/
+
+# ─── Build & Distribution ─────────────────────────────────────────────────────
 dist/
 build/
 *.egg-info/
@@ -45,23 +63,30 @@ eggs/
 .eggs/
 wheels/
 pip-wheel-metadata/
+MANIFEST
 
-# --- VS Code Extension Build & Dependencies ---
-node_modules/
+# PyInstaller output
+*.spec
+*.exe
+*.dmg
+
+# ─── VS Code Extension Build Artifacts ────────────────────────────────────────
+vscode-extension/node_modules/
 **/node_modules/
-out/
+vscode-extension/out/
 **/out/
 *.vsix
 .vscode-test/
 
-# --- IDE & Editors ---
+# ─── IDE & Editor Files ───────────────────────────────────────────────────────
 .vscode/*
 !.vscode/settings.json.example
 .idea/
 *.sublime-project
 *.sublime-workspace
+*.code-workspace
 
-# --- Windows & OS Files ---
+# ─── Windows & OS Junk ────────────────────────────────────────────────────────
 Thumbs.db
 Thumbs.db:encryptable
 ehthumbs.db
@@ -70,3 +95,25 @@ Desktop.ini
 $RECYCLE.BIN/
 *.lnk
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# ─── Test & Coverage Artifacts ────────────────────────────────────────────────
+.coverage
+coverage.xml
+*.cover
+*.lcov
+nosetests.xml
+test-results/
+
+# ─── Scratch / Temporary Work ─────────────────────────────────────────────────
+scratch/
+*.scratch.*
+temp_test_*/
+
+# ─── Whisper Model Cache (large binary files, downloaded on demand) ───────────
+# Models are auto-downloaded to %APPDATA%/faster_whisper — not in repo
+faster_whisper_models/
+whisper_models/
+*.bin
+*.gguf
