@@ -40,6 +40,36 @@ class FastCommandRouter:
             "take a screenshot": AgentPlan(reply="Taking screenshot.", actions=[AgentAction(type="screenshot")]),
             "take screenshot": AgentPlan(reply="Taking screenshot.", actions=[AgentAction(type="screenshot")]),
             "screenshot": AgentPlan(reply="Taking screenshot.", actions=[AgentAction(type="screenshot")]),
+
+            # Screen reading / AI vision
+            "read the screen": AgentPlan(reply="Reading the screen.", actions=[AgentAction(type="screen_read")]),
+            "read screen": AgentPlan(reply="Reading the screen.", actions=[AgentAction(type="screen_read")]),
+            "whats on my screen": AgentPlan(reply="Analysing your screen.", actions=[AgentAction(type="screen_read")]),
+            "what is on my screen": AgentPlan(reply="Analysing your screen.", actions=[AgentAction(type="screen_read")]),
+            "whats on the screen": AgentPlan(reply="Analysing your screen.", actions=[AgentAction(type="screen_read")]),
+            "what is on the screen": AgentPlan(reply="Analysing your screen.", actions=[AgentAction(type="screen_read")]),
+            "whats on screen": AgentPlan(reply="Analysing your screen.", actions=[AgentAction(type="screen_read")]),
+            "what is on screen": AgentPlan(reply="Analysing your screen.", actions=[AgentAction(type="screen_read")]),
+            "describe the screen": AgentPlan(reply="Describing what I see.", actions=[AgentAction(type="screen_read")]),
+            "describe my screen": AgentPlan(reply="Describing what I see.", actions=[AgentAction(type="screen_read")]),
+            "describe this screen": AgentPlan(reply="Describing what I see.", actions=[AgentAction(type="screen_read")]),
+            "describe screen": AgentPlan(reply="Describing what I see.", actions=[AgentAction(type="screen_read")]),
+            "describe the display": AgentPlan(reply="Describing what I see.", actions=[AgentAction(type="screen_read")]),
+            "describe my display": AgentPlan(reply="Describing what I see.", actions=[AgentAction(type="screen_read")]),
+            "describe display": AgentPlan(reply="Describing what I see.", actions=[AgentAction(type="screen_read")]),
+            "read this": AgentPlan(reply="Reading what's on screen.", actions=[AgentAction(type="screen_read")]),
+            "read whats on screen": AgentPlan(reply="Reading the screen.", actions=[AgentAction(type="screen_read")]),
+            "read what is on screen": AgentPlan(reply="Reading the screen.", actions=[AgentAction(type="screen_read")]),
+            "what does it say": AgentPlan(reply="Reading the screen.", actions=[AgentAction(type="screen_read")]),
+            "what does it show": AgentPlan(reply="Looking at the screen.", actions=[AgentAction(type="screen_read")]),
+            "analyse the screen": AgentPlan(reply="Analysing the screen.", actions=[AgentAction(type="screen_read")]),
+            "analyze the screen": AgentPlan(reply="Analysing the screen.", actions=[AgentAction(type="screen_read")]),
+            "capture the screen": AgentPlan(reply="Capturing the screen.", actions=[AgentAction(type="screenshot")]),
+            "capture screen": AgentPlan(reply="Capturing the screen.", actions=[AgentAction(type="screenshot")]),
+            "capture the display": AgentPlan(reply="Capturing the screen.", actions=[AgentAction(type="screenshot")]),
+            "capture display": AgentPlan(reply="Capturing the screen.", actions=[AgentAction(type="screenshot")]),
+
+
             "volume up": AgentPlan(reply="Volume up.", actions=[AgentAction(type="volume_up")]),
             "turn volume up": AgentPlan(reply="Volume up.", actions=[AgentAction(type="volume_up")]),
             "volume down": AgentPlan(reply="Volume down.", actions=[AgentAction(type="volume_down")]),
@@ -256,6 +286,38 @@ class FastCommandRouter:
             return AgentPlan(
                 reply=f"Opening downloads{reply_name}.",
                 actions=[AgentAction(type="browser_show_downloads", app=b_name)]
+            )
+
+        # 1c. Screen Capture & Screen Reading Patterns
+        # e.g. "take a screenshot of the display", "capture the screen", "capture display"
+        screenshot_match = (
+            re.search(
+                r'^(?:please\s+)?(?:take|capture)\s+(?:a\s+)?(?:screenshot|screen\s*shot|snapshot|pic|picture)(?:\s+(?:of|on)\s+(?:the\s+)?(?:screen|display|desktop))?[.!?]*$',
+                lower
+            ) or
+            re.search(
+                r'^(?:please\s+)?(?:take|capture)\s+(?:the\s+)?(?:screen|display|desktop)[.!?]*$',
+                lower
+            )
+        )
+        if screenshot_match:
+            return AgentPlan(
+                reply="Taking screenshot.",
+                actions=[AgentAction(type="screenshot")]
+            )
+
+        # e.g. "read the screen", "describe the display", "what is displayed on the screen", "what is on my display"
+        screen_read_match = (
+            re.search(r'^(?:please\s+)?(?:read|describe|explain|see|analyse|analyze)\s+(?:what(?:[\'\s]s|\s+is)\s+(?:on|in)\s+)?(?:the|my|this)?\s*(?:screen|display)[.!?]*$', lower) or
+            re.search(r'^(?:what(?:[\'\s]s|\s+is)\s+)(?:on|in)\s+(?:the|my|this)?\s*(?:screen|display)[.!?]*$', lower) or
+            re.search(r'^(?:what(?:[\'\s]s|\s+is)\s+)?(?:displayed|open|shown|visible)\s+(?:on|in)?\s*(?:the|my|this)?\s*(?:screen|display)[.!?]*$', lower) or
+            re.search(r'^(?:what\s+(?:application|app|file|folder|window)\s+is\s+)?(?:displayed|open|shown|visible)\s+(?:on|in)?\s*(?:the|my|this)?\s*(?:screen|display)[.!?]*$', lower) or
+            re.search(r'^what\s+do\s+you\s+see(?:\s+on\s+(?:the|my|this)?\s*(?:screen|display))?[.!?]*$', lower)
+        )
+        if screen_read_match:
+            return AgentPlan(
+                reply="Reading the screen.",
+                actions=[AgentAction(type="screen_read")]
             )
 
         # 2. Directory inspection / What's inside?

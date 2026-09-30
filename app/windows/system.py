@@ -48,23 +48,29 @@ class WindowsSystemControls:
     @classmethod
     def capture_screenshot(cls, destination_folder: Optional[Path] = None) -> tuple[Path, str]:
         """
-        Captures full-screen screenshot and saves to Pictures/Screenshots or Desktop.
+        Captures the full screen, applies binary thresholding, compresses to
+        ≤100 KB and saves to Pictures/Screenshots (or Desktop as fallback).
         Returns (saved_path, confirmation_message).
         """
+        from app.windows.screen_reader import ScreenReader
+
         if destination_folder is None:
             standard = WindowsPathResolver.get_standard_folders()
             screenshots_dir = standard["Pictures"] / "Screenshots"
-            if not screenshots_dir.exists():
-                screenshots_dir.mkdir(parents=True, exist_ok=True)
+            screenshots_dir.mkdir(parents=True, exist_ok=True)
             target_dir = screenshots_dir if screenshots_dir.is_dir() else standard["Desktop"]
         else:
-            target_dir = destination_folder
+            target_dir = Path(destination_folder)
 
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        filename = f"Screenshot_{timestamp}.png"
-        filepath = target_dir / filename
+        filepath = target_dir / f"Screenshot_{timestamp}.png"
 
-        screenshot = pyautogui.screenshot()
-        screenshot.save(str(filepath))
-        logger.info(f"Screenshot saved to: {filepath}")
-        return filepath, f"Screenshot saved to {filepath.name}."
+        try:
+            data, info = ScreenReader.capture_and_compress(save_path=filepath, binary=True)
+            logger.info(f"Screenshot saved: {filepath}  [{info}]")
+            return filepath, f"Screenshot saved. {info}."
+        except Exception as e:
+            logger.error(f"Failed to capture screenshot: {e}")
+            return filepath, f"Could not capture screenshot: {e}."
+
+

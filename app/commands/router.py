@@ -391,6 +391,14 @@ class ActionRouter:
                 path, msg = WindowsSystemControls.capture_screenshot()
                 return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg, data={"path": str(path)})
 
+            elif act_type == "screen_read":
+                # Capture screen → binary threshold → AI vision description
+                from app.windows.screen_reader import ScreenReader
+                user_prompt = action.query or "What is displayed on this screen? Describe it briefly."
+                description = ScreenReader.describe_with_ai(prompt=user_prompt)
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message=description)
+
+
             elif act_type == "volume_up":
                 msg = WindowsSystemControls.volume_up()
                 return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg)

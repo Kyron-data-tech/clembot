@@ -42,7 +42,9 @@ class AIPromptBuilder:
         # VS Code Inspection (NEW)
         "vscode_inspect", "vscode_find_symbols", "vscode_outline",
         # System & Clipboard
-        "screenshot", "volume_up", "volume_down", "volume_mute",
+        "screenshot", "screen_read",
+        "volume_up", "volume_down", "volume_mute",
+
         "copy", "paste", "clear_clipboard", "select_all", "undo", "redo", "save",
         # Conversational Q&A
         "answer_question",
@@ -98,8 +100,11 @@ Standard Windows/File/Browser actions:
   browser_show_history [app=chrome|brave]    — opens Ctrl+H search history (only if browser is displayed)
   browser_show_downloads [app=chrome|brave]  — opens Ctrl+J downloads tab (only if browser is displayed)
   browser_bookmark, browser_zoom_in, browser_zoom_out, browser_zoom_reset, browser_incognito
-  screenshot, volume_up, volume_down, volume_mute
+  screenshot             — saves a binary-thresholded screenshot (≤100 KB) to Pictures/Screenshots
+  screen_read (query?)   — captures the screen and uses AI vision to describe / read what's visible
+  volume_up, volume_down, volume_mute
   copy, paste, clear_clipboard, select_all, undo, redo, save
+
 
 VS Code Navigation:
   vscode_jump_line (line_number)

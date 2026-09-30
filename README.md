@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue?logo=windows)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Tests](https://img.shields.io/badge/Tests-353%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-365%20passing-brightgreen)
 ![Status](https://img.shields.io/badge/Status-Active-brightgreen)
 
 **Control your entire Windows PC with your voice — open apps, edit code, manage files, control browsers, and more.**
@@ -18,7 +18,7 @@
 
 **Clembot** is a production-grade, local-first voice assistant built exclusively for **Windows 10 and Windows 11**. It understands natural speech (including Hinglish), routes commands through a zero-latency deterministic engine for common tasks, and falls back to an AI reasoning layer (Gemini / Ollama / OpenAI) for complex or ambiguous requests.
 
-It ships with a full VS Code integration, browser context-awareness (Chrome & Brave), surgical AST-level code patching, multi-turn conversational memory, and a modern Windows GUI.
+It ships with a full VS Code integration, browser context-awareness (Chrome & Brave), screen reading & binary-thresholded vision under 100KB, surgical AST-level code patching, multi-turn conversational memory, and a modern Windows GUI.
 
 ---
 
@@ -29,6 +29,7 @@ It ships with a full VS Code integration, browser context-awareness (Chrome & Br
 | 🎙 **Wake Word** | *"Clembot activate"* / *"Clembot deactivate"* — fuzzy phonetic matching tolerates mishearings |
 | ⚡ **Zero-Latency Router** | 100+ commands resolved instantly offline with no API call |
 | 🧠 **AI Planner** | Gemini, Ollama (Qwen/Llama), OpenAI — structured Pydantic action plans with 1-retry self-correction |
+| 👁 **Screen Vision & OCR** | Captures display, binary-thresholds to separate text from background, compresses to ≤100 KB, reads/describes visible apps, files, or folders |
 | 🗣 **Speech Normalizer** | Strips fillers, corrects homophones — *"post grey sql"* → `postgresql`, *"pi charm"* → `pycharm` |
 | 🌐 **Browser Control** | Chrome & Brave tab management — guarded: commands only fire when the browser is actually visible |
 | 💻 **VS Code Integration** | Bidirectional TypeScript extension over local IPC (port 25362) for precise cursor nav & edits |
@@ -83,9 +84,21 @@ It ships with a full VS Code integration, browser context-awareness (Chrome & Br
 "Snap window right"                 → Snaps to right half of screen
 "Center window"                     → Centers window at 70% size
 "Show desktop"                      → Win+D
-"Take a screenshot"                 → Saves to Pictures/Screenshots
 "Volume up" / "Volume down" / "Mute"
 ```
+
+### Screen Capture & Reading (Vision)
+> Screenshots are automatically converted into high-contrast binary images via adaptive thresholding to maximize text-background separation and compressed under 100 KB.
+
+```
+"Take a screenshot"                 → Saves binary-thresholded PNG (≤100 KB) to Pictures/Screenshots
+"Capture the display"               → Captures and saves display (under 100 KB)
+"Read the screen"                   → AI vision reads and speaks what is displayed aloud
+"What's on my screen"               → Identifies visible applications, files, folders, or windows
+"Describe the display"              → High-contrast text separation & verbal description
+"What application is open on screen"→ Tells you which app/window is visible
+```
+
 
 ### Browser Control (Chrome & Brave)
 > Commands only execute when the browser is actually visible on screen.
@@ -216,7 +229,9 @@ voiceps/
 │   ├── windows/
 │   │   ├── apps.py                  # App Catalog: Start Menu / UWP / Registry / known paths
 │   │   ├── window_manager.py        # Win32 snap, minimize, maximize, close (pre-command snapshot)
+│   │   ├── screen_reader.py         # Screen capture, binary thresholding (≤100 KB) & AI vision
 │   │   └── system.py                # Volume control + screenshot
+
 │   ├── filesystem/
 │   │   ├── paths.py                 # Windows Known Folders + COM Explorer resolver
 │   │   ├── service.py               # Safe file ops + Send2Trash Recycle Bin
