@@ -1,6 +1,9 @@
+import logging
 import threading
 from collections import defaultdict
 from typing import Any, Callable, Dict, List
+
+logger = logging.getLogger("clembot.event_bus")
 
 
 class EventBus:
@@ -32,7 +35,7 @@ class EventBus:
                 handler(data)
             except Exception as e:
                 # Keep bus resilient against subscriber failures
-                print(f"[EventBus] Error in handler {handler} for {event_name}: {e}")
+                logger.warning(f"Error in event handler {handler} for {event_name}: {e}")
 
 
 # Global event bus singleton

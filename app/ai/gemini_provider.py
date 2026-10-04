@@ -13,6 +13,24 @@ class GeminiProvider(AIProvider):
     strict Pydantic schema validation, and automatic 1-retry self-correction.
     """
 
+    def __init__(self):
+        self._client = None
+        self._client_key: Optional[str] = None
+
+    def _get_client(self):
+        """Returns a cached Gemini client with a 30-second planning timeout."""
+        from google import genai
+        from google.genai import types as gtypes
+
+        key = settings.gemini_api_key
+        if self._client is None or self._client_key != key:
+            self._client = genai.Client(
+                api_key=key,
+                http_options=gtypes.HttpOptions(timeout=30_000),  # 30 s planning timeout
+            )
+            self._client_key = key
+        return self._client
+
     def is_available(self) -> bool:
         return bool(settings.gemini_api_key and settings.gemini_api_key.strip())
 
@@ -24,7 +42,7 @@ class GeminiProvider(AIProvider):
 
         try:
             from google import genai
-            client = genai.Client(api_key=settings.gemini_api_key)
+            client = self._get_client()
 
             system_instruction = prompt_builder.build_system_instruction()
             user_prompt = prompt_builder.build_user_prompt(command, context)
@@ -63,5 +81,7 @@ class GeminiProvider(AIProvider):
 
         except Exception as e:
             logger.error(f"Gemini planner execution error: {e}. Falling back to local heuristic.")
+            # Invalidate cached client in case of auth/network error
+            self._client = None
             from app.ai.local_heuristic import LocalHeuristicPlanner
             return LocalHeuristicPlanner().plan(command, context)

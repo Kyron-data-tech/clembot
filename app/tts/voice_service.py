@@ -1,4 +1,5 @@
 import queue
+import re
 import threading
 from typing import Optional
 
@@ -29,7 +30,6 @@ class VoiceService:
         if not self.enabled or not text or not text.strip():
             return
 
-        import re
         cleaned = re.sub(r'```[^`]*```', '', text, flags=re.DOTALL)
         cleaned = re.sub(r'[*_`#]+', '', cleaned).strip()
         if not cleaned:
@@ -42,11 +42,11 @@ class VoiceService:
 
     def stop(self) -> None:
         """Clears the speech queue and stops active speech."""
-        while not self.queue.empty():
+        while True:
             try:
                 self.queue.get_nowait()
                 self.queue.task_done()
-            except queue.Empty:
+            except (queue.Empty, ValueError):
                 break
         self.provider.stop()
 

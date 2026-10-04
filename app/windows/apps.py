@@ -354,39 +354,48 @@ class WindowsAppCatalog:
             Path(os.environ.get("PUBLIC", "C:\\Users\\Public")) / "Desktop",
         ]
 
+        com_initialized = False
         wscript = None
         if HAS_WIN32:
             try:
                 pythoncom.CoInitialize()
+                com_initialized = True
                 wscript = win32com.client.Dispatch("WScript.Shell")
             except Exception as e:
                 logger.debug(f"Could not initialize WScript.Shell: {e}")
 
-        for root in start_menu_roots:
-            if not root.is_dir():
-                continue
-            for lnk in root.rglob("*.lnk"):
-                try:
-                    stem = lnk.stem
-                    norm_stem = self._normalize(stem)
-                    target_exe = str(lnk)
-                    if wscript:
-                        try:
-                            sc = wscript.CreateShortcut(str(lnk))
-                            if sc.TargetPath and os.path.exists(sc.TargetPath):
-                                target_exe = sc.TargetPath
-                        except Exception:
-                            pass
-
-                    catalog[norm_stem] = {
-                        "name": stem,
-                        "type": "lnk",
-                        "target": target_exe,
-                        "lnk_path": str(lnk),
-                        "aliases": [stem.lower()]
-                    }
-                except Exception:
+        try:
+            for root in start_menu_roots:
+                if not root.is_dir():
                     continue
+                for lnk in root.rglob("*.lnk"):
+                    try:
+                        stem = lnk.stem
+                        norm_stem = self._normalize(stem)
+                        target_exe = str(lnk)
+                        if wscript:
+                            try:
+                                sc = wscript.CreateShortcut(str(lnk))
+                                if sc.TargetPath and os.path.exists(sc.TargetPath):
+                                    target_exe = sc.TargetPath
+                            except Exception:
+                                pass
+
+                        catalog[norm_stem] = {
+                            "name": stem,
+                            "type": "lnk",
+                            "target": target_exe,
+                            "lnk_path": str(lnk),
+                            "aliases": [stem.lower()]
+                        }
+                    except Exception:
+                        continue
+        finally:
+            if com_initialized:
+                try:
+                    pythoncom.CoUninitialize()
+                except Exception:
+                    pass
 
     def _index_uwp_apps(self, catalog: Dict[str, Dict[str, Any]]) -> None:
         """Queries Windows modern UWP apps via Get-StartApps."""

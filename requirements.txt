@@ -15,6 +15,7 @@ send2trash>=1.8.0         # Safe file delete → Windows Recycle Bin
 pystray>=0.19.5           # Windows System Tray icon
 sounddevice>=0.5.0        # Low-latency audio capture (microphone input)
 pillow>=10.0.0            # Image processing (screenshots, GUI assets)
+numpy>=1.24.0             # Numerical arrays (PCM audio VAD, screen adaptive thresholding)
 psutil>=5.9.0             # Process enumeration (app detection, browser guard)
 pycaw>=20240000           # Windows Core Audio API (volume control)
 uiautomation>=2.0.0       # UI Automation (browser tab detection, count_tabs)

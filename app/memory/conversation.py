@@ -7,6 +7,7 @@ and resolves conversational references ("it", "that", "this file", "undo that").
 """
 
 import re
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -25,6 +26,27 @@ class ConversationTurn:
     target_symbol: Optional[str] = None
 
 
+# Pre-compiled undo pattern — called on every command, avoid re.compile() per call
+_UNDO_RE = re.compile(
+    r'\b(?:'
+    r'undo(?:\s+(?:that|this|it))?'
+    r'|undo\s+(?:the\s+|that\s+|this\s+|my\s+)?(?:last\s+|previous\s+)?(?:code\s+)?(?:change|edit|modification)s?'
+    r'|revert(?:\s+(?:that|this|it))?'
+    r'|revert\s+(?:the\s+|that\s+|this\s+|my\s+)?(?:last\s+|previous\s+)?(?:code\s+)?(?:change|edit|modification)s?'
+    r'|change\s+it\s+back'
+    r'|take\s+it\s+back'
+    r'|put\s+it\s+back'
+    r'|pehle\s+jaisa\s+kar\s*do'
+    r'|jo\s+abhi\s+change\s+kiya\s+tha(?:\s+usko)?\s+undo\s+karo'
+    r'|jo\s+change\s+kiya\s+tha(?:\s+usko)?\s+undo\s+karo'
+    r'|pichh?la\s+change\s+undo\s+karo'
+    r'|edit\s+undo\s+karo'
+    r'|code\s+(?:change\s+)?undo\s+karo'
+    r')\b',
+    re.IGNORECASE
+)
+
+
 class ConversationalMemory:
     """
     Maintains short-term conversational context and resolves pronouns and directional references.
@@ -37,7 +59,7 @@ class ConversationalMemory:
     """
 
     def __init__(self, max_history: int = 25):
-        self.history: List[ConversationTurn] = []
+        self.history: deque[ConversationTurn] = deque(maxlen=max_history)
         self.max_history = max_history
 
         # Entity tracking
@@ -60,9 +82,7 @@ class ConversationalMemory:
             speaker="user",
             text=text
         )
-        self.history.append(turn)
-        if len(self.history) > self.max_history:
-            self.history.pop(0)
+        self.history.append(turn)  # deque auto-evicts oldest when maxlen exceeded
 
     def add_clembot_turn(
         self,
@@ -83,9 +103,7 @@ class ConversationalMemory:
             target_file=target_file,
             target_symbol=target_symbol
         )
-        self.history.append(turn)
-        if len(self.history) > self.max_history:
-            self.history.pop(0)
+        self.history.append(turn)  # deque auto-evicts oldest when maxlen exceeded
 
         # Update cached entity references
         if target_path:
@@ -142,25 +160,8 @@ class ConversationalMemory:
         """
         resolved = command
 
-        # 1. Direct undo commands
-        undo_pattern = (
-            r'\b(?:'
-            r'undo(?:\s+(?:that|this|it))?'
-            r'|undo\s+(?:the\s+|that\s+|this\s+|my\s+)?(?:last\s+|previous\s+)?(?:code\s+)?(?:change|edit|modification)s?'
-            r'|revert(?:\s+(?:that|this|it))?'
-            r'|revert\s+(?:the\s+|that\s+|this\s+|my\s+)?(?:last\s+|previous\s+)?(?:code\s+)?(?:change|edit|modification)s?'
-            r'|change\s+it\s+back'
-            r'|take\s+it\s+back'
-            r'|put\s+it\s+back'
-            r'|pehle\s+jaisa\s+kar\s*do'
-            r'|jo\s+abhi\s+change\s+kiya\s+tha(?:\s+usko)?\s+undo\s+karo'
-            r'|jo\s+change\s+kiya\s+tha(?:\s+usko)?\s+undo\s+karo'
-            r'|pichh?la\s+change\s+undo\s+karo'
-            r'|edit\s+undo\s+karo'
-            r'|code\s+(?:change\s+)?undo\s+karo'
-            r')\b'
-        )
-        if re.search(undo_pattern, command, re.IGNORECASE):
+        # 1. Direct undo commands (pre-compiled pattern at module level)
+        if _UNDO_RE.search(command):
             return "undo"
 
         # 2. Resolve "there" or "in there" to the last visited folder

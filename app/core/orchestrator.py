@@ -94,6 +94,11 @@ class AssistantOrchestrator:
         if not raw_text:
             return
 
+        # Hold the lock only for the fast dedup / wake-word / state checks.
+        # process_command() is called OUTSIDE the lock because it invokes
+        # the Gemini API (2-10 s roundtrip) and must not block speech events.
+        command_to_process: str | None = None
+
         with self._lock:
             # Normalize spoken phonetic variations (clemburt, clem ber, clembur -> clembot)
             cleaned = self.wake_detector.normalize_spoken_name(raw_text)
@@ -131,6 +136,12 @@ class AssistantOrchestrator:
                 logger.debug("Ignored input because Clembot is deactivated (IDLE).")
                 return
 
+            # Drop commands that arrive while we're already processing/executing
+            # (prevents pile-up during slow LLM calls)
+            if self.state in (AssistantState.PROCESSING, AssistantState.EXECUTING):
+                logger.info(f"Dropped command while busy ({self.state.value}): \"{cleaned}\"")
+                return
+
             # 3. Check Awaiting Confirmation State
             if self.state == AssistantState.AWAITING_CONFIRMATION and self.pending_confirmation:
                 self._handle_confirmation_response(cleaned)
@@ -142,8 +153,12 @@ class AssistantOrchestrator:
                 self._reply_and_record("Yes, I'm listening.")
                 return
 
-            # 5. Process Regular Command
-            self.process_command(cleaned)
+            # Mark for processing outside the lock
+            command_to_process = cleaned
+
+        # 5. Process Regular Command — runs OUTSIDE the lock
+        if command_to_process:
+            self.process_command(command_to_process)
 
     def process_command(self, raw_command: str) -> None:
         """Processes a validated user command."""

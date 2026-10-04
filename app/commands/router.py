@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from typing import Optional
 from app.automation.input_adapter import WindowsInputAdapter
@@ -41,9 +42,8 @@ class ActionRouter:
             # 1. Filesystem actions
             if act_type == "open_folder":
                 raw_folder = (action.path or "Downloads").strip()
-                import re as _re
-                clean_folder = _re.sub(r'^(?:(?:the|my)\s+)?(?:folder|directory|project|workspace)\s+', '', raw_folder, flags=_re.IGNORECASE).strip() or raw_folder
-                clean_folder = _re.sub(r'\s+(?:folder|directory|project|workspace)$', '', clean_folder, flags=_re.IGNORECASE).strip() or clean_folder
+                clean_folder = re.sub(r'^(?:(?:the|my)\s+)?(?:folder|directory|project|workspace)\s+', '', raw_folder, flags=re.IGNORECASE).strip() or raw_folder
+                clean_folder = re.sub(r'\s+(?:folder|directory|project|workspace)$', '', clean_folder, flags=re.IGNORECASE).strip() or clean_folder
                 clean_folder = clean_folder.strip("'\" ")
 
                 # 1. System shell target (e.g. ::{...})
@@ -93,8 +93,7 @@ class ActionRouter:
                     msg = self.apps.open_or_activate(target_str)
                     return ActionResult(action_id=action.id, action_type="open_app", success=True, message=msg)
 
-                import re as _re
-                clean_target = _re.sub(r'^(?:(?:the|my)\s+)?(?:file|folder|directory|project|workspace)\s+', '', target_str, flags=_re.IGNORECASE).strip() or target_str
+                clean_target = re.sub(r'^(?:(?:the|my)\s+)?(?:file|folder|directory|project|workspace)\s+', '', target_str, flags=re.IGNORECASE).strip() or target_str
 
                 # Code file extensions that should open in VS Code if VS Code is running or active
                 code_exts = {
@@ -112,7 +111,7 @@ class ActionRouter:
                                         message=f"Opened {item_type} '{ws_match.name}' in VS Code.")
 
                 # 2. Check if the target has a file extension or resolves on filesystem
-                has_extension = bool(_re.search(r'\.[a-zA-Z0-9]{1,6}$', clean_target))
+                has_extension = bool(re.search(r'\.[a-zA-Z0-9]{1,6}$', clean_target))
                 if has_extension:
                     try:
                         resolved_p = WindowsPathResolver.resolve(clean_target, context_base=context_base)
@@ -197,9 +196,8 @@ class ActionRouter:
             # 2. Application & Window Control
             elif act_type == "open_app":
                 raw_target = (action.app or "").strip()
-                import re as _re
-                target = _re.sub(r'^(?:(?:the|my)\s+)?(?:folder|directory|project|workspace)\s+', '', raw_target, flags=_re.IGNORECASE).strip()
-                target = _re.sub(r'\s+(?:folder|directory|project|workspace)$', '', target, flags=_re.IGNORECASE).strip() or raw_target
+                target = re.sub(r'^(?:(?:the|my)\s+)?(?:folder|directory|project|workspace)\s+', '', raw_target, flags=re.IGNORECASE).strip()
+                target = re.sub(r'\s+(?:folder|directory|project|workspace)$', '', target, flags=re.IGNORECASE).strip() or raw_target
 
                 # 1. Exact built-in or catalog match
                 norm_t = target.lower()
@@ -460,9 +458,8 @@ class ActionRouter:
 
             elif act_type == "vscode_open_file":
                 raw_target = (action.path or "").strip()
-                import re as _re
-                clean_target = _re.sub(r'^(?:(?:the|my)\s+)?(?:file|folder|directory|project|workspace)\s+', '', raw_target, flags=_re.IGNORECASE).strip() or raw_target
-                clean_target = _re.sub(r'\s+(?:folder|directory|project|workspace|file)$', '', clean_target, flags=_re.IGNORECASE).strip() or clean_target
+                clean_target = re.sub(r'^(?:(?:the|my)\s+)?(?:file|folder|directory|project|workspace)\s+', '', raw_target, flags=re.IGNORECASE).strip() or raw_target
+                clean_target = re.sub(r'\s+(?:folder|directory|project|workspace|file)$', '', clean_target, flags=re.IGNORECASE).strip() or clean_target
                 clean_target = clean_target.strip("'\" ")
 
                 # 0. Check direct path / absolute path first
@@ -685,7 +682,6 @@ class ActionRouter:
                     # Build a vscode_patch action from the free-text instruction via AI
                     from app.ai.factory import AIProviderFactory
                     from app.core.models import ScreenContext
-                    import re as _re
                     lines = current_code.splitlines()
                     snippet = "\n".join(f"{i+1}: {l}" for i, l in enumerate(lines[:100]))
                     mini_prompt = (
@@ -702,8 +698,8 @@ class ActionRouter:
                     mini_plan = provider.plan(mini_prompt, ctx)
                     import json as _json
                     raw = mini_plan.reply.strip()
-                    raw = _re.sub(r'^```[^\n]*\n?', '', raw)
-                    raw = _re.sub(r'\n?```$', '', raw).strip()
+                    raw = re.sub(r'^```[^\n]*\n?', '', raw)
+                    raw = re.sub(r'\n?```$', '', raw).strip()
                     patch_data = {}
                     try:
                         patch_data = _json.loads(raw)

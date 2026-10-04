@@ -4,6 +4,10 @@ from typing import Optional, Tuple
 from app.core.models import AgentAction, AgentPlan
 
 
+# Pre-compile the normalize regex (called on every spoken command)
+_NORMALIZE_RE = re.compile(r'[^\w\s]')
+
+
 class FastCommandRouter:
     """
     High-speed deterministic offline command router.
@@ -11,13 +15,17 @@ class FastCommandRouter:
     before falling back to AI LLM reasoning.
     """
 
-    def plan_for_command(self, raw_command: str, llm_active: bool = False) -> Optional[AgentPlan]:
-        cmd = raw_command.strip()
-        lower = cmd.lower()
-        normalized = re.sub(r'[^\w\s]', '', lower).strip()
+    _EXACT_MATCHES = None
 
-        # 1. Exact static commands dictionary
-        exact_matches = {
+    @classmethod
+    def _get_exact_matches(cls):
+        if cls._EXACT_MATCHES is None:
+            cls._EXACT_MATCHES = cls._build_exact_matches()
+        return cls._EXACT_MATCHES
+
+    @classmethod
+    def _build_exact_matches(cls):
+        return {
             # Window management
             "minimize the current window": AgentPlan(reply="Minimizing window.", actions=[AgentAction(type="window_minimize")]),
             "minimize this window": AgentPlan(reply="Minimizing window.", actions=[AgentAction(type="window_minimize")]),
@@ -193,6 +201,13 @@ class FastCommandRouter:
             "change it back": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
         }
 
+    def plan_for_command(self, raw_command: str, llm_active: bool = False) -> Optional[AgentPlan]:
+        cmd = raw_command.strip()
+        lower = cmd.lower()
+        normalized = _NORMALIZE_RE.sub('', lower).strip()
+
+        # 1. Exact static commands lookup (O(1) cached singleton, zero per-call allocation)
+        exact_matches = self._get_exact_matches()
         if normalized in exact_matches:
             return exact_matches[normalized]
 

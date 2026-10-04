@@ -117,3 +117,21 @@ faster_whisper_models/
 whisper_models/
 *.bin
 *.gguf
+
+# ─── Screenshot & Media Captures ──────────────────────────────────────────────
+screenshots/
+**/screenshots/
+Clembot_Screenshot_*.png
+Screenshot_*.png
+*.wav
+*.pcm
+
+# ─── Node & Build Logs ────────────────────────────────────────────────────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── Merge & System Artifacts ─────────────────────────────────────────────────
+*.orig
+*.rej
+*.dmp

@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 
+import numpy as np
 from PIL import Image, ImageFilter, ImageGrab
 
 from app.logging.logger import logger
@@ -86,7 +87,6 @@ class ScreenReader:
         # Smart Adaptive Local Thresholding
         local_bg = gray.filter(ImageFilter.BoxBlur(adaptive_radius))
 
-        import numpy as np
         g = np.array(gray, dtype=np.int16)
         b = np.array(local_bg, dtype=np.int16)
 
@@ -124,27 +124,39 @@ class ScreenReader:
         Returns (png_bytes, width, height, size_kb).
         """
         orig_w, orig_h = img.size
+        is_mode_1 = (img.mode == "1")
 
         for scale in _SCALE_STEPS:
             nw = max(1, int(orig_w * scale))
             nh = max(1, int(orig_h * scale))
-            resized = img.resize((nw, nh), Image.LANCZOS)
 
-            buf = io.BytesIO()
-            resized.save(buf, format="PNG", optimize=True, compress_level=9)
-            data = buf.getvalue()
+            if scale == 1.0:
+                candidate = img
+            else:
+                inter = img.convert("L") if is_mode_1 else img
+                resized = inter.resize((nw, nh), Image.LANCZOS)
+                candidate = (
+                    resized.point(lambda p: 255 if p > 127 else 0, mode="1")
+                    if is_mode_1
+                    else resized
+                )
+
+            with io.BytesIO() as buf:
+                candidate.save(buf, format="PNG", optimize=True, compress_level=9)
+                data = buf.getvalue()
 
             if len(data) <= max_bytes:
                 return data, nw, nh, len(data) / 1024
 
         # Absolute last resort: JPEG 4:1 downscale at low quality
         logger.warning("ScreenReader: PNG path failed to reach 100 KB; falling back to JPEG")
+        data = b""
         for quality in [60, 40, 20, 10]:
-            nw, nh = int(orig_w * 0.18), int(orig_h * 0.18)
+            nw, nh = max(1, int(orig_w * 0.18)), max(1, int(orig_h * 0.18))
             rgb = img.convert("RGB").resize((nw, nh), Image.LANCZOS)
-            buf = io.BytesIO()
-            rgb.save(buf, format="JPEG", quality=quality, optimize=True)
-            data = buf.getvalue()
+            with io.BytesIO() as buf:
+                rgb.save(buf, format="JPEG", quality=quality, optimize=True)
+                data = buf.getvalue()
             if len(data) <= max_bytes:
                 return data, nw, nh, len(data) / 1024
 
@@ -180,6 +192,26 @@ class ScreenReader:
 
     # ── 5. AI Vision description ──────────────────────────────────────────────
 
+    # Cached Gemini client — recreated only when the API key changes
+    _gemini_client = None
+    _gemini_client_key: Optional[str] = None
+
+    @classmethod
+    def _get_gemini_client(cls):
+        """Returns a cached Gemini client, rebuilding if the API key changed."""
+        from app.config.settings import settings
+        from google import genai
+        from google.genai import types as gtypes
+
+        key = settings.gemini_api_key
+        if cls._gemini_client is None or cls._gemini_client_key != key:
+            cls._gemini_client = genai.Client(
+                api_key=key,
+                http_options=gtypes.HttpOptions(timeout=15_000),  # 15 s timeout
+            )
+            cls._gemini_client_key = key
+        return cls._gemini_client
+
     @classmethod
     def describe_with_ai(
         cls,
@@ -210,10 +242,9 @@ class ScreenReader:
         # ── b) Try Gemini Vision ───────────────────────────────────────────────
         if settings.gemini_api_key and settings.gemini_api_key.strip():
             try:
-                from google import genai
                 from google.genai import types as gtypes
 
-                client = genai.Client(api_key=settings.gemini_api_key)
+                client = cls._get_gemini_client()
 
                 image_part = gtypes.Part.from_bytes(
                     data=data,
@@ -233,8 +264,10 @@ class ScreenReader:
                     )
                 )
 
+                # Use the configured model name (gemini-2.5-flash supports vision)
+                vision_model = settings.ai_model_name
                 response = client.models.generate_content(
-                    model="gemini-2.0-flash",    # vision-capable flash model
+                    model=vision_model,
                     contents=[image_part, text_part],
                     config=gtypes.GenerateContentConfig(temperature=0.2),
                 )
@@ -245,6 +278,8 @@ class ScreenReader:
 
             except Exception as exc:
                 logger.warning(f"ScreenReader: Gemini vision failed: {exc}")
+                # Invalidate cached client in case the key/network changed
+                cls._gemini_client = None
                 return (
                     "I captured the screen but could not analyse it because the AI service is unavailable. "
                     f"The binary image is {w} by {h} pixels and {kb:.1f} kilobytes."

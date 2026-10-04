@@ -2,6 +2,7 @@ import math
 import queue
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, List, Optional
 import numpy as np
 import sounddevice as sd
@@ -37,6 +38,10 @@ class SpeechEngine(BaseSpeechRecognizer):
         self._worker_thread: Optional[threading.Thread] = None
         self._audio_queue: queue.Queue = queue.Queue()
         self._lock = threading.Lock()
+
+        # Bounded pool for STT network calls — keeps audio loop non-blocking.
+        # Max 2 concurrent recognitions (avoids rate-limit pile-up on slow networks).
+        self._stt_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="Clembot-STT")
 
         self._current_callback: Optional[Callable[[str], None]] = None
         self._current_error_callback: Optional[Callable[[str], None]] = None
@@ -102,6 +107,11 @@ class SpeechEngine(BaseSpeechRecognizer):
         if self._worker_thread and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=1.5)
 
+        # Drain in-flight STT requests with a short timeout
+        self._stt_pool.shutdown(wait=True, cancel_futures=False)
+        # Recreate pool for potential restart
+        self._stt_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="Clembot-STT")
+
         logger.info("Speech recognition engine stopped.")
         event_bus.emit("speech_engine_stopped")
 
@@ -159,7 +169,10 @@ class SpeechEngine(BaseSpeechRecognizer):
 
                         # Did user finish speaking?
                         if silence_frames >= max_silence_frames or len(speech_buffer) >= max_phrase_frames:
-                            self._process_recorded_utterance(speech_buffer)
+                            # Dispatch to thread pool — STT is a network call (1-5s)
+                            # and must NOT block the audio buffer loop
+                            utterance_copy = list(speech_buffer)
+                            self._stt_pool.submit(self._process_recorded_utterance, utterance_copy)
                             speech_buffer = []
                             is_speaking = False
                             silence_frames = 0
@@ -172,13 +185,14 @@ class SpeechEngine(BaseSpeechRecognizer):
             if self._current_error_callback:
                 self._current_error_callback(err_msg)
 
-    def _calibrate_ambient(self, duration_sec: float = 0.5) -> float:
+    def _calibrate_ambient(self, duration_sec: float = 0.6) -> float:
         """Computes baseline ambient RMS over duration_sec."""
+        time.sleep(0.1)  # Allow hardware audio callback to start delivering frames
         energies = []
         end_time = time.time() + duration_sec
         while time.time() < end_time:
             try:
-                chunk = self._audio_queue.get(timeout=0.1)
+                chunk = self._audio_queue.get(timeout=0.15)
                 rms = np.sqrt(np.mean(chunk.astype(np.float64)**2))
                 energies.append(rms)
             except queue.Empty:
@@ -189,7 +203,7 @@ class SpeechEngine(BaseSpeechRecognizer):
 
     def _process_recorded_utterance(self, chunks: List[np.ndarray]) -> None:
         """Converts accumulated PCM chunks to SpeechRecognition AudioData and runs STT."""
-        if not chunks or len(chunks) < 3:
+        if not chunks or len(chunks) < 2:   # 200ms minimum (was 300ms — too long for short commands)
             return
 
         try:
