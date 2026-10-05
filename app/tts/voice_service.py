@@ -6,8 +6,8 @@ from typing import Optional
 from app.config.settings import settings
 from app.core.event_bus import event_bus
 from app.logging.logger import logger
+from app.platform_layer import platform_adapter
 from app.tts.base import BaseTTSProvider
-from app.tts.sapi_engine import SAPIEngine
 
 
 class VoiceService:
@@ -17,7 +17,7 @@ class VoiceService:
     """
 
     def __init__(self, provider: Optional[BaseTTSProvider] = None):
-        self.provider = provider or SAPIEngine()
+        self.provider = provider or platform_adapter.create_tts_engine()
         self.queue: queue.Queue = queue.Queue()
         self.enabled = settings.tts_enabled
         self._stop_event = threading.Event()

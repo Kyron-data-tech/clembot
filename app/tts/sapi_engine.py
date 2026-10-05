@@ -1,6 +1,14 @@
+import sys
 from typing import Any, Dict, List, Optional
-import pyttsx3
-import pythoncom
+
+try:
+    import pyttsx3
+    import pythoncom
+    _HAS_SAPI = True
+except ImportError:
+    pyttsx3 = None  # type: ignore[assignment]
+    pythoncom = None  # type: ignore[assignment]
+    _HAS_SAPI = False
 
 from app.config.settings import settings
 from app.logging.logger import logger
@@ -18,8 +26,13 @@ class SAPIEngine(BaseTTSProvider):
         self._rate = settings.tts_rate
         self._volume = settings.tts_volume
 
-    def _create_engine(self) -> pyttsx3.Engine:
+    def _create_engine(self):
         """Creates and configures a fresh pyttsx3 engine instance for the current thread."""
+        if not _HAS_SAPI:
+            raise RuntimeError(
+                "SAPIEngine requires pyttsx3 and pythoncom (Windows only). "
+                "On macOS, use MacOSTTSEngine instead."
+            )
         try:
             pythoncom.CoInitialize()
         except Exception:

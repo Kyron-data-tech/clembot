@@ -1,14 +1,14 @@
-# Clembot — Windows Voice Assistant
+# Clembot — Cross-Platform Voice Assistant
 
 <div align="center">
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)
-![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-blue?logo=windows)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Tests](https://img.shields.io/badge/Tests-365%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-447%20passing-brightgreen)
 ![Status](https://img.shields.io/badge/Status-Active-brightgreen)
 
-**Control your entire Windows PC with your voice — open apps, edit code, manage files, control browsers, and more.**
+**Control your entire PC with your voice — open apps, edit code, manage files, switch browser tabs, and more.**
 
 </div>
 
@@ -16,9 +16,9 @@
 
 ## What is Clembot?
 
-**Clembot** is a production-grade, local-first voice assistant built exclusively for **Windows 10 and Windows 11**. It understands natural speech (including Hinglish), routes commands through a zero-latency deterministic engine for common tasks, and falls back to an AI reasoning layer (Gemini / Ollama / OpenAI) for complex or ambiguous requests.
+**Clembot** is a production-grade, local-first voice assistant for **Windows 10/11** and **macOS (Apple Silicon M3/M4 arm64)**. It understands natural speech (including Hinglish), routes commands through a zero-latency deterministic engine for common tasks, and falls back to an AI reasoning layer (Gemini / Ollama / OpenAI) for complex or ambiguous requests.
 
-It ships with a full VS Code integration, browser context-awareness (Chrome & Brave), screen reading & binary-thresholded vision under 100KB, surgical AST-level code patching, multi-turn conversational memory, and a modern Windows GUI.
+It ships with full VS Code integration, browser context-awareness (Chrome & Brave), screen reading & binary-thresholded vision, surgical AST-level code patching, multi-turn conversational memory, and a modern GUI.
 
 ---
 
@@ -26,21 +26,128 @@ It ships with a full VS Code integration, browser context-awareness (Chrome & Br
 
 | Feature | Detail |
 |---|---|
-| 🎙 **Wake Word** | *"Clembot activate"* / *"Clembot deactivate"* — fuzzy phonetic matching tolerates mishearings |
+| 🎙️ **Wake Word** | *"Clembot activate"* / *"Clembot deactivate"* — fuzzy phonetic matching tolerates mishearings |
 | ⚡ **Zero-Latency Router** | 100+ commands resolved instantly offline with no API call |
 | 🧠 **AI Planner** | Gemini, Ollama (Qwen/Llama), OpenAI — structured Pydantic action plans with 1-retry self-correction |
-| 👁 **Screen Vision & OCR** | Captures display, binary-thresholds to separate text from background, compresses to ≤100 KB, reads/describes visible apps, files, or folders |
-| 🗣 **Speech Normalizer** | Strips fillers, corrects homophones — *"post grey sql"* → `postgresql`, *"pi charm"* → `pycharm` |
-| 🌐 **Browser Control** | Chrome & Brave tab management — guarded: commands only fire when the browser is actually visible |
+| 👁️ **Screen Vision & OCR** | Captures display, binary-thresholds to separate text from background, compresses to <100 KB |
+| 🗣️ **Speech Normalizer** | Strips fillers, corrects homophones — *"post grey sql"* → `postgresql`, *"pi charm"* → `pycharm` |
+| 🌐 **Browser Control** | Chrome & Brave tab management via AppleScript (macOS) and UIAutomation (Windows) |
 | 💻 **VS Code Integration** | Bidirectional TypeScript extension over local IPC (port 25362) for precise cursor nav & edits |
-| 🔧 **Code Patch Engine** | AST-aware surgical code patching with unified diff preview, `.bak` backups, and full undo |
-| 📁 **File System** | Desktop, Downloads, Documents, OneDrive, drive roots — COM-based Explorer tab detection |
-| 🗑 **Safe Deletes** | All deletions go to Windows Recycle Bin via `Send2Trash` — never silent, always recoverable |
-| 🪟 **Window Manager** | Snap left/right/center, minimize, maximize, close — targets the correct pre-command window |
-| 📦 **App Catalog** | Start Menu + UWP + Registry + known install paths — finds Chrome/Brave even if not in PATH |
-| 💬 **Hinglish Support** | Detects Hindi/English mix and routes to AI reasoning layer automatically |
-| 🔍 **Self-Check** | `python -m app.doctor` verifies all 12 critical subsystems before you speak a word |
-| 🛡 **Safety Layer** | Blocks system paths, dangerous commands (`format c:`), confirms destructive folder deletes |
+| ✂️ **Code Patch Engine** | AST-aware surgical code patching with unified diff preview, `.bak` backups, and full undo |
+| 📂 **File System** | Desktop, Downloads, Documents, OneDrive — COM-based (Windows) / mdfind+Spotlight (macOS) |
+| 🗑️ **Safe Deletes** | All deletions go to Recycle Bin / macOS Trash via `send2trash` — always recoverable |
+| 🪟 **Window Manager** | Snap left/right/center, minimize, maximize, close |
+| 🔍 **App Catalog** | Start Menu + UWP + Registry (Windows) / mdfind + fuzzy match (macOS) |
+| 🇮🇳 **Hinglish Support** | Detects Hindi/English mix and routes to AI reasoning layer automatically |
+| 🩺 **Self-Check** | `python -m app.doctor` verifies all 12 critical subsystems before you speak a word |
+| 🛡️ **Safety Layer** | Blocks system paths, dangerous commands (`format c:`, `rm -rf /`), confirms destructive deletes |
+
+---
+
+## Platform Support
+
+| Feature | Windows 10/11 | macOS (arm64 / Intel) |
+|---|:---:|:---:|
+| Voice recognition | ✅ | ✅ |
+| Open apps / files / folders | ✅ | ✅ |
+| Browser tab switching (Chrome & Brave) | ✅ UIAutomation | ✅ AppleScript |
+| Window management (snap/minimize/maximize) | ✅ | ✅ |
+| Volume control | ✅ SAPI/PyCaw | ✅ AppleScript |
+| TTS (offline) | ✅ SAPI5/pyttsx3 | ✅ `/usr/bin/say` |
+| VS Code integration | ✅ | ✅ |
+| Code patching by voice | ✅ | ✅ |
+| Screen reading / vision | ✅ | ✅ |
+| GUI tray icon | ✅ | ✅ (menu bar) |
+| Microphone permissions check | ✅ | ✅ guided setup |
+
+---
+
+## Quick Start
+
+### Windows
+
+```powershell
+# 1. Clone
+git clone https://github.com/your-username/clembot.git
+cd clembot
+
+# 2. Create venv & install
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements/windows.txt
+
+# 3. Configure
+copy .env.example .env
+# Edit .env — add your GEMINI_API_KEY
+
+# 4. Run health check
+python -m app.doctor
+
+# 5. Launch
+python -m app.main
+```
+
+Or use the automated installer:
+
+```powershell
+.\scripts\install_windows.ps1
+```
+
+### macOS (Apple Silicon M3/M4 — arm64)
+
+```bash
+# 0. Prerequisites (one-time)
+brew install portaudio          # Required for PyAudio microphone input
+
+# 1. Clone
+git clone https://github.com/your-username/clembot.git
+cd clembot
+
+# 2. Create venv & install
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements/macos.txt
+
+# 3. Configure
+cp .env.example .env
+# Edit .env — add your GEMINI_API_KEY
+
+# 4. Run health check
+python -m app.doctor
+
+# 5. Launch
+python -m app.main --cli      # CLI mode (no GUI on macOS yet)
+```
+
+Or use the automated installer:
+
+```bash
+bash scripts/install_macos.sh
+```
+
+---
+
+## Configuration
+
+Copy `.env.example` to `.env` and fill in your keys:
+
+```env
+# Required — at least one AI provider
+GEMINI_API_KEY=your_gemini_key_here
+
+# Optional
+OPENAI_API_KEY=your_openai_key_here
+OLLAMA_BASE_URL=http://localhost:11434
+
+# Speech
+CLEMBOT_STT_ENGINE=google          # google | whisper
+CLEMBOT_TTS_RATE=175
+CLEMBOT_TTS_VOLUME=1.0
+
+# Behaviour
+CLEMBOT_DEFAULT_AI_PROVIDER=gemini # gemini | ollama | openai | heuristic
+CLEMBOT_CONTINUOUS_LISTENING=true
+```
 
 ---
 
@@ -55,139 +162,67 @@ It ships with a full VS Code integration, browser context-awareness (Chrome & Br
 
 ### Files & Folders
 ```
-"Open Downloads"                    → Opens Windows Downloads folder
-"Open Desktop"                      → Opens Desktop in Explorer
+"Open Downloads"
+"Open Desktop"
 "Create a folder called Projects on Desktop"
 "Create a file called notes.txt"
 "Rename notes.txt to college_notes.txt"
 "Move resume from Downloads to Documents"
-"Delete college_notes.txt"          → Moves to Recycle Bin (recoverable)
+"Delete college_notes.txt"          → Moves to Recycle Bin / Trash (recoverable)
 "Find all Python files in my project"
 ```
 
 ### Applications
 ```
-"Open Chrome"                       → Launches Chrome (or activates if running)
-"Open Brave"                        → Launches Brave Browser
-"Open VS Code"                      → Launches / focuses Visual Studio Code
-"Open Notepad"                      → Opens Notepad
-"Close Chrome"                      → Closes Chrome gracefully
-"Close it" / "Close this"          → Closes the currently active window
-"Switch to VS Code"                 → Brings VS Code to foreground
+"Open Chrome"                       → Launch or activate Chrome
+"Open Brave"
+"Open VS Code"
+"Close Chrome"
+"Switch to VS Code"
 ```
 
-### Window & System Control
+### Browser (Chrome & Brave)
 ```
-"Minimize this window"              → Minimizes active app
-"Maximize this window"              → Maximizes active app
-"Snap window left"                  → Snaps to left half of screen
-"Snap window right"                 → Snaps to right half of screen
-"Center window"                     → Centers window at 70% size
-"Show desktop"                      → Win+D
-"Volume up" / "Volume down" / "Mute"
-```
-
-### Screen Capture & Reading (Vision)
-> Screenshots are automatically converted into high-contrast binary images via adaptive thresholding to maximize text-background separation and compressed under 100 KB.
-
-```
-"Take a screenshot"                 → Saves binary-thresholded PNG (≤100 KB) to Pictures/Screenshots
-"Capture the display"               → Captures and saves display (under 100 KB)
-"Read the screen"                   → AI vision reads and speaks what is displayed aloud
-"What's on my screen"               → Identifies visible applications, files, folders, or windows
-"Describe the display"              → High-contrast text separation & verbal description
-"What application is open on screen"→ Tells you which app/window is visible
-```
-
-
-### Browser Control (Chrome & Brave)
-> Commands only execute when the browser is actually visible on screen.
-
-```
-"Open a new tab"                    → Ctrl+T in active browser
-"In Chrome open a new tab"          → Targets Chrome specifically
-"Open tab number 4"                 → Switches to tab 4 (validates tab exists)
-"Fourth tab"                        → Switches to tab 4
-"Show search history"               → Opens Ctrl+H browser history
-"Show downloads folder"             → Opens Ctrl+J browser downloads tab
-"In Brave show downloads folder"
-"Close tab"                         → Closes current browser tab
-"Next tab" / "Previous tab"        → Tab navigation
-"Reload"                            → Reloads current page
-"Bookmark this page"               → Ctrl+D
-"Open incognito"                    → Opens private window
-"Zoom in" / "Zoom out" / "Reset zoom"
-```
-
-### Web Search
-```
-"Search Google for Python tutorials"
-"Search YouTube for Django REST API"
+"New tab"
+"Close tab"
+"Go to tab 3"
+"Next tab" / "Previous tab"
+"Open YouTube"
+"Search YouTube for lo-fi music"
 "Open GitHub"
-"Open https://github.com"
+"Reopen closed tab"
+"Bookmark this page"
+"Go incognito"
+```
+
+### Window & System
+```
+"Snap left" / "Snap right" / "Snap center"
+"Minimize" / "Maximize" / "Restore" / "Close window"
+"Show desktop"
+"Volume up" / "Volume down" / "Mute"
+"Take a screenshot"
+"Read my screen"                    → AI describes what's visible
 ```
 
 ### VS Code & Code Editing
 ```
-"Open app.py"
-"Go to line 25"
-"Jump to line 50"
-"Change the function name calculate_total to calculate_price"
-"At line 30, add a try except block around the database call"
-"Run this Python program"
-"Undo code change"                  → Reverts last patch from .bak backup
+"Jump to line 42"
+"Open file utils.py"
+"Next file" / "Previous file"
+"Read this file"
+"Change the function name from foo to bar"
+"Add a docstring to the calculate function"
+"Fix the syntax error on line 12"
+"Run this file"
+"Undo last change"
 ```
 
----
-
-## Architecture
-
+### Clipboard
 ```
-                        ┌─────────────────────────┐
-                        │     Microphone Audio     │
-                        └────────────┬────────────┘
-                                     │ PCM audio
-                                     ▼
-                        ┌─────────────────────────┐
-                        │   Speech Recognition    │  Google Cloud / Whisper (local)
-                        │  Wake: "Clembot activate"│
-                        └────────────┬────────────┘
-                                     │ Normalized text
-                                     ▼
-                        ┌─────────────────────────┐
-                        │    Speech Normalizer    │  Homophones, fillers, user aliases
-                        │  + Conversational Memory│  (undo refs, "that file", "it")
-                        └────────────┬────────────┘
-                                     │
-               ┌─────────────────────┴─────────────────────┐
-               ▼                                           ▼
-  ┌────────────────────────┐                ┌──────────────────────────┐
-  │   FastCommandRouter    │                │     AI Intent Planner    │
-  │   (Instant, Offline)   │                │  Gemini / Ollama / OpenAI│
-  │  100+ commands, 0ms    │                │  Hinglish / open-ended   │
-  └────────────┬───────────┘                └──────────────┬───────────┘
-               │                                           │
-               └─────────────────────┬─────────────────────┘
-                                     │ AgentPlan (Pydantic)
-                                     ▼
-                        ┌─────────────────────────┐
-                        │   Safety & Policy Layer  │  Blocks system paths,
-                        │   Confirmation Queue     │  confirms destructive ops,
-                        └────────────┬────────────┘  diff preview on code edits
-                                     │ Approved actions
-                                     ▼
-                        ┌─────────────────────────┐
-                        │      Action Router       │
-                        └──┬──────┬──────┬──┬─────┘
-                           │      │      │  │
-              ┌────────────┘   ┌──┘   ┌──┘  └─────────────┐
-              ▼                ▼      ▼                     ▼
-     ┌──────────────┐  ┌──────────┐  ┌──────────┐  ┌────────────────┐
-     │  FileSystem  │  │  Windows │  │ Browser  │  │  VS Code IPC   │
-     │  (Send2Trash │  │ AppCatalog│  │Controller│  │  TypeScript    │
-     │   KnownDirs) │  │ Win32gui │  │Chrome/   │  │  Extension     │
-     │              │  │ WinMgr   │  │Brave     │  │  :25362        │
-     └──────────────┘  └──────────┘  └──────────┘  └────────────────┘
+"Copy" / "Paste" / "Select all"
+"Copy [text] to clipboard"
+"Clear clipboard"
 ```
 
 ---
@@ -195,210 +230,154 @@ It ships with a full VS Code integration, browser context-awareness (Chrome & Br
 ## Project Structure
 
 ```
-voiceps/
+clembot/
 ├── app/
-│   ├── main.py                      # Entry point (GUI / CLI / Tray modes)
-│   ├── doctor.py                    # System self-check (12 subsystems)
-│   ├── ai/
-│   │   ├── base.py                  # AIProvider abstract base
-│   │   ├── factory.py               # Provider factory with fallback chain
-│   │   ├── gemini_provider.py       # Google Gemini API provider
-│   │   ├── ollama_provider.py       # Local Ollama (Qwen / Llama)
-│   │   ├── openai_provider.py       # OpenAI API provider
-│   │   ├── local_heuristic.py       # 100% offline rule-based NLP planner
-│   │   ├── language_detector.py     # Hindi/Hinglish detection
-│   │   └── prompt_builder.py        # System prompt + action type registry
+│   ├── platform_layer/         # 🆕 Cross-platform abstraction layer
+│   │   ├── base.py             #    Abstract PlatformAdapter interface
+│   │   ├── factory.py          #    OS detection — loads only the right adapter
+│   │   ├── windows/            #    Windows implementation (pywin32, UIAutomation)
+│   │   └── macos/              #    macOS implementation (AppleScript, Spotlight)
+│   │       ├── adapter.py
+│   │       ├── apps.py         #    App catalog (mdfind + fuzzy matching)
+│   │       ├── browser.py      #    AppleScript tab controller
+│   │       ├── window_mgr.py
+│   │       ├── system.py       #    Volume, clipboard, hotkeys
+│   │       ├── tts.py          #    /usr/bin/say engine
+│   │       └── permissions.py  #    macOS Privacy & Security checks
 │   ├── commands/
-│   │   ├── fast_router.py           # Deterministic 0-ms command router (700+ lines)
-│   │   ├── router.py                # Action dispatcher to subsystems
-│   │   └── friendly_errors.py       # User-facing error messages
-│   ├── speech/
-│   │   ├── engine.py                # Continuous listen + push-to-talk
-│   │   ├── engine_factory.py        # STT provider selector
-│   │   ├── wake_word.py             # Fuzzy phonetic wake-word detector
-│   │   ├── normalizer.py            # Homophone + filler word normalizer
-│   │   └── whisper_engine.py        # Local faster-whisper STT engine
-│   ├── browser/
-│   │   └── controller.py            # Chrome & Brave context-aware tab control
+│   │   └── router.py           # Action dispatcher (platform-agnostic)
 │   ├── editor/
-│   │   ├── vscode_adapter.py        # VS Code IPC client + file fallback
-│   │   ├── code_patch_engine.py     # Patch apply / undo / .bak management
-│   │   ├── code_intelligence.py     # AST inspection + unified diff engine
-│   │   ├── code_edit_parser.py      # Voice edit intent parser
-│   │   └── generic_adapter.py       # Generic text editor adapter
-│   ├── windows/
-│   │   ├── apps.py                  # App Catalog: Start Menu / UWP / Registry / known paths
-│   │   ├── window_manager.py        # Win32 snap, minimize, maximize, close (pre-command snapshot)
-│   │   ├── screen_reader.py         # Screen capture, binary thresholding (≤100 KB) & AI vision
-│   │   └── system.py                # Volume control + screenshot
-
-│   ├── filesystem/
-│   │   ├── paths.py                 # Windows Known Folders + COM Explorer resolver
-│   │   ├── service.py               # Safe file ops + Send2Trash Recycle Bin
-│   │   └── search.py                # Bounded user file search
-│   ├── core/
-│   │   ├── models.py                # AgentPlan, AgentAction, ScreenContext (Pydantic)
-│   │   ├── event_bus.py             # Thread-safe pub/sub dispatcher
-│   │   └── orchestrator.py          # Master state machine + foreground window snapshot
-│   ├── ai/                          # (see above)
-│   ├── ipc/
-│   │   └── server.py                # FastAPI local IPC on 127.0.0.1:25362
-│   ├── memory/
-│   │   └── conversation.py          # Multi-turn memory + contextual reference resolver
-│   ├── security/
-│   │   └── guard.py                 # Path validator + dangerous command blocker
-│   ├── context/
-│   │   └── context_manager.py       # Real-time desktop state inspector
-│   ├── automation/
-│   │   └── input_adapter.py         # Controlled keyboard/mouse automation
-│   ├── clipboard/
-│   │   └── manager.py               # Windows clipboard integration
-│   ├── tts/
-│   │   ├── sapi_engine.py           # Offline SAPI 5 via pyttsx3
-│   │   └── voice_service.py         # Async non-blocking TTS queue
-│   ├── config/
-│   │   └── settings.py              # Pydantic settings + .env loader
-│   ├── logging/
-│   │   └── logger.py                # Structured logging with credential scrubbing
-│   └── ui/
-│       ├── main_window.py           # Modern GUI: waveform, transcripts, diff preview
-│       ├── settings_dialog.py       # Audio / AI / Safety settings
-│       ├── tray.py                  # Windows System Tray manager
-│       └── theme.py                 # Fluent dark/light design system
-├── vscode-extension/                # TypeScript VS Code extension (IPC bridge)
-│   ├── src/extension.ts
-│   ├── package.json
-│   └── tsconfig.json
-├── tests/                           # 353 passing unit tests
+│   │   ├── vscode_adapter.py   # VS Code IPC + CLI integration
+│   │   └── code_patch_engine.py
+│   ├── browser/
+│   │   └── controller.py       # Windows browser controller (UIAutomation)
+│   ├── filesystem/             # Cross-platform file operations
+│   ├── speech/                 # STT engine factory
+│   ├── tts/                    # TTS engine factory
+│   ├── ai/                     # Gemini / Ollama / OpenAI planners
+│   ├── core/                   # Orchestrator, state machine, event bus
+│   ├── ui/                     # CustomTkinter GUI + system tray
+│   ├── security/               # Shell safety, path protection
+│   └── doctor.py               # System health check
+├── requirements/
+│   ├── base.txt                # Shared cross-platform deps
+│   ├── windows.txt             # Windows-only deps (-r base.txt)
+│   └── macos.txt               # macOS-only deps (-r base.txt)
 ├── scripts/
-│   └── build_exe.py                 # PyInstaller .exe builder
-├── run_clembot.bat                  # One-click Windows launcher
-├── requirements.txt                 # Python dependencies
-├── .env.example                     # Configuration template
-├── INSTALLATION.md                  # Step-by-step setup guide
-└── TESTING.md                       # Test instructions
+│   ├── install_windows.ps1     # Windows automated setup
+│   └── install_macos.sh        # macOS automated setup
+├── tests/                      # 447 passing unit tests
+│   ├── test_platform_macos.py  # macOS platform layer (78 tests, mock-based)
+│   └── ...
+├── vscode-extension/           # TypeScript VS Code extension
+├── .env.example
+└── README.md
 ```
 
 ---
 
-## Quick Start
+## macOS Permissions
 
-### Prerequisites
-- **Windows 10 or Windows 11** (required — uses Win32 APIs)
-- **Python 3.10+**  
-- A working **microphone**
+On first launch on macOS, you may be prompted to grant:
 
-### 1. Clone & Install
+| Permission | Required For |
+|---|---|
+| **Microphone** | Voice recognition (STT) |
+| **Accessibility** | Window focus, keyboard automation, hotkeys |
+| **Automation** | AppleScript browser & app control |
+| **Screen Recording** | Screen reading / vision feature |
 
-```powershell
-git clone https://github.com/<your-username>/Clembot.git
-cd Clembot
+Run `python -m app.doctor` to check all permissions and get step-by-step instructions for any that are missing.
 
-# Create and activate virtual environment (recommended)
-python -m venv venv
-.\venv\Scripts\Activate.ps1
+---
 
-# Install dependencies
-pip install -r requirements.txt
-```
+## Running Tests
 
-### 2. Configure
+```bash
+# All 447 tests (Windows or macOS — all mock-based, no real OS calls needed)
+python -m unittest discover -s tests -v
 
-```powershell
-copy .env.example .env
-# Edit .env and add your API key (only needed if using Gemini/OpenAI)
-```
+# macOS platform layer only (78 tests)
+python -m unittest tests.test_platform_macos -v
 
-Minimum `.env` for offline-only mode (no AI key needed):
-```env
-CLEMBOT_AI_PROVIDER=local
-CLEMBOT_STT_PROVIDER=google
-```
-
-For Gemini AI:
-```env
-CLEMBOT_AI_PROVIDER=gemini
-GEMINI_API_KEY=your_key_here
-```
-
-### 3. Run Self-Check
-
-```powershell
-.\venv\Scripts\python.exe -m app.doctor
-```
-
-### 4. Launch
-
-```powershell
-# Double-click the launcher:
-run_clembot.bat
-
-# Or run directly:
-.\venv\Scripts\python.exe -m app.main
-
-# CLI mode (no GUI):
-.\venv\Scripts\python.exe -m app.main --cli
+# Windows platform layer only
+python -m unittest tests.test_platform_windows -v
 ```
 
 ---
 
 ## VS Code Extension
 
-The TypeScript extension connects VS Code to Clembot over `http://127.0.0.1:25362` for:
-- Reading the active file and cursor position
-- Jumping to specific lines
-- Receiving surgical code edits from the AI
+The extension provides a live IPC bridge between VS Code and Clembot:
 
-**Install the extension:**
-```powershell
+```bash
 cd vscode-extension
 npm install
 npm run compile
-# Then press F5 in VS Code to launch in Extension Development Host
+# Press F5 in VS Code to launch the Extension Development Host
+```
+
+Install the built `.vsix` via: `code --install-extension clembot-bridge.vsix`
+
+---
+
+## Doctor — Health Check
+
+```bash
+python -m app.doctor
+```
+
+Checks:
+- Python version
+- Microphone availability & permissions
+- AI provider connectivity (Gemini / Ollama / OpenAI)
+- TTS engine (SAPI5 on Windows, `/usr/bin/say` on macOS)
+- Local IPC port availability
+- VS Code extension reachability
+- All critical modules importable
+
+---
+
+## Architecture
+
+```
+Voice Input (PyAudio / SpeechRecognition)
+        ↓
+Speech Normalizer (homophones, fillers, Hinglish)
+        ↓
+Wake Word Detector (fuzzy phonetic match)
+        ↓
+Fast Heuristic Router (100+ instant patterns)
+        ↓  (on miss)
+AI Planner (Gemini / Ollama / OpenAI)  →  Pydantic ActionPlan
+        ↓
+Action Router (platform-agnostic dispatcher)
+        ↓
+PlatformAdapter (Windows or macOS)
+        ↓
+Result + TTS Response
 ```
 
 ---
 
-## Configuration Reference (`.env`)
+## Contributing
 
-| Variable | Default | Description |
-|---|---|---|
-| `CLEMBOT_AI_PROVIDER` | `local` | `local` / `gemini` / `ollama` / `openai` |
-| `CLEMBOT_STT_PROVIDER` | `google` | `google` (cloud) / `whisper` (local, no key needed) |
-| `GEMINI_API_KEY` | — | Required if `AI_PROVIDER=gemini` |
-| `OPENAI_API_KEY` | — | Required if `AI_PROVIDER=openai` |
-| `OLLAMA_MODEL` | `qwen2.5` | Ollama model name |
-| `CLEMBOT_SAFE_MODE` | `true` | Require confirmation before destructive actions |
-| `CLEMBOT_LOG_LEVEL` | `INFO` | `DEBUG` / `INFO` / `WARNING` |
+1. Fork the repo
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Run the tests: `python -m unittest discover -s tests`
+4. Commit: `git commit -m "feat: add my feature"`
+5. Push & open a PR
 
----
-
-## Safety & Data Protection
-
-1. **Recycle Bin Default** — all file/folder deletes use `Send2Trash`, never `os.remove`. Always recoverable.
-2. **Deletion Confirmation** — folders with many items require explicit spoken confirmation.
-3. **Protected System Paths** — `C:\Windows`, `C:\Program Files`, `C:\` root are blocked unconditionally.
-4. **Dangerous Command Shield** — `format c:`, `rmdir /s /q c:\`, etc. are intercepted before execution.
-5. **Code Diff Preview** — major code changes show a unified diff in the GUI before applying; automatic `.bak` backup created.
-6. **Browser Guard** — browser tab commands (new tab, switch tab, history) only fire when Chrome or Brave is actually visible on screen — no accidental hotkeys.
-7. **Window Snapshot** — close/minimize/maximize capture the foreground window *before* Clembot takes focus, so they always target your app, not Clembot itself.
-
----
-
-## Running Tests
-
-```powershell
-# Using venv (recommended)
-.\venv\Scripts\python.exe -m unittest discover -s tests -v
-
-# Quick summary
-.\venv\Scripts\python.exe -m unittest discover -s tests 2>&1 | Select-Object -Last 3
-```
-
-**353 tests, all passing.**
+Please keep Windows and macOS adapters in sync — any new OS-touching method added to one adapter must be added to the other and to `base.py`.
 
 ---
 
 ## License
 
-MIT License. Built for Windows 10 & Windows 11.
+MIT — see [LICENSE](LICENSE).
+
+---
+
+<div align="center">
+Made with ❤️ · Windows 10/11 & macOS Apple Silicon
+</div>

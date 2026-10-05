@@ -1,22 +1,39 @@
+"""
+app/doctor.py
+
+Pre-flight diagnostic health doctor for Clembot.
+Audits Python version, platform-specific dependencies, audio input, text-to-speech,
+local IPC port, AI provider configuration, and OS permissions across Windows and macOS.
+"""
+
 import os
 import socket
+import subprocess
 import sys
 from pathlib import Path
+
+# Ensure project root is in sys.path and app directory is not shadowing stdlib modules
+project_root = Path(__file__).resolve().parent.parent
+app_dir = Path(__file__).resolve().parent
+while str(app_dir) in sys.path:
+    sys.path.remove(str(app_dir))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 from typing import Dict, List, Tuple
+from app.platform_layer import platform_adapter
 
 
 class SystemDoctor:
     """
     Pre-flight diagnostic doctor that checks system health, required packages,
-    audio input/output, IPC ports, and AI provider configurations.
+    audio input/output, IPC ports, AI provider configurations, and OS permissions.
     """
 
-    CRITICAL_PACKAGES = [
-        ("win32gui", "pywin32"),
+    BASE_PACKAGES = [
         ("customtkinter", "customtkinter"),
         ("sounddevice", "sounddevice"),
         ("speech_recognition", "SpeechRecognition"),
-        ("pyttsx3", "pyttsx3"),
         ("rapidfuzz", "rapidfuzz"),
         ("jellyfish", "jellyfish"),
         ("psutil", "psutil"),
@@ -24,7 +41,24 @@ class SystemDoctor:
         ("fastapi", "fastapi"),
         ("uvicorn", "uvicorn"),
         ("send2trash", "send2trash"),
+        ("PIL", "Pillow"),
     ]
+
+    WINDOWS_PACKAGES = [
+        ("win32gui", "pywin32"),
+        ("pyttsx3", "pyttsx3"),
+    ]
+
+    MACOS_PACKAGES: List[Tuple[str, str]] = []
+
+    @classmethod
+    def get_required_packages(cls) -> List[Tuple[str, str]]:
+        packages = list(cls.BASE_PACKAGES)
+        if sys.platform == "win32":
+            packages.extend(cls.WINDOWS_PACKAGES)
+        elif sys.platform == "darwin":
+            packages.extend(cls.MACOS_PACKAGES)
+        return packages
 
     @classmethod
     def check_python_version(cls) -> Tuple[bool, str]:
@@ -37,7 +71,7 @@ class SystemDoctor:
     @classmethod
     def check_packages(cls) -> List[Tuple[str, bool, str]]:
         results = []
-        for mod_name, pkg_name in cls.CRITICAL_PACKAGES:
+        for mod_name, pkg_name in cls.get_required_packages():
             try:
                 __import__(mod_name)
                 results.append((pkg_name, True, "Installed and importable"))
@@ -59,14 +93,24 @@ class SystemDoctor:
 
     @classmethod
     def check_tts_engine(cls) -> Tuple[bool, str]:
-        try:
-            import pyttsx3
-            engine = pyttsx3.init()
-            voices = engine.getProperty("voices")
-            v_count = len(voices) if voices else 0
-            return True, f"Windows SAPI voice engine initialized ({v_count} voices available)"
-        except Exception as e:
-            return False, f"TTS engine failed to initialize: {e}"
+        if sys.platform == "darwin":
+            try:
+                res = subprocess.run(["/usr/bin/say", "-v", "?"], capture_output=True, text=True, timeout=3.0)
+                if res.returncode == 0:
+                    v_count = len(res.stdout.splitlines())
+                    return True, f"Native macOS speech engine (/usr/bin/say) operational ({v_count} voices)"
+                return False, "macOS say command returned non-zero exit code"
+            except Exception as e:
+                return False, f"macOS say command check failed: {e}"
+        else:
+            try:
+                import pyttsx3
+                engine = pyttsx3.init("sapi5")
+                voices = engine.getProperty("voices")
+                v_count = len(voices) if voices else 0
+                return True, f"Windows SAPI voice engine initialized ({v_count} voices available)"
+            except Exception as e:
+                return False, f"TTS engine failed to initialize: {e}"
 
     @classmethod
     def check_ipc_port(cls, port: int = 25362) -> Tuple[bool, str]:
@@ -107,7 +151,7 @@ class SystemDoctor:
 
     @classmethod
     def check_app_catalog(cls) -> Tuple[bool, str]:
-        cache_dir = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))) / "Clembot"
+        cache_dir = platform_adapter.get_cache_dir()
         cache_file = cache_dir / "app_index.json"
         if cache_file.exists():
             return True, f"App catalog cache present at {cache_file}"
@@ -115,8 +159,9 @@ class SystemDoctor:
 
     @classmethod
     def run_all(cls) -> bool:
+        plat_name = platform_adapter.get_platform_name()
         print("=" * 65)
-        print("  CLEMBOT SYSTEM HEALTH DOCTOR -- Windows 10/11 Diagnostic")
+        print(f"  CLEMBOT SYSTEM HEALTH DOCTOR -- {plat_name} Diagnostic")
         print("=" * 65)
 
         all_ok = True
@@ -149,19 +194,29 @@ class SystemDoctor:
         if not ok:
             all_ok = False
 
-        # 4. IPC Bridge
+        # 4. OS Permissions & Capabilities
+        print("\n--- Platform Permissions ---")
+        try:
+            perm_checks = platform_adapter.check_permissions()
+            for name, p_ok, p_msg in perm_checks:
+                symbol = "[PASS]" if p_ok else "[WARN]"
+                print(f"{symbol:7} {name:20} : {p_msg}")
+        except Exception as e:
+            print(f"[WARN]  Permissions check: {e}")
+
+        # 5. Local IPC Bridge
         print("\n--- Local IPC Network ---")
         ok, msg = cls.check_ipc_port()
         symbol = "[PASS]" if ok else "[WARN]"
         print(f"{symbol:7} Local IPC Port   : {msg}")
 
-        # 5. AI Provider
+        # 6. AI Provider
         print("\n--- AI Intelligence Provider ---")
         ok, msg = cls.check_ai_provider()
         symbol = "[PASS]" if ok else "[WARN]"
         print(f"{symbol:7} AI Provider      : {msg}")
 
-        # 6. App Catalog
+        # 7. App Catalog
         print("\n--- Application Catalog ---")
         ok, msg = cls.check_app_catalog()
         symbol = "[PASS]" if ok else "[INFO]"

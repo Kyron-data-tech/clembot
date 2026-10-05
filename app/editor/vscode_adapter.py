@@ -644,8 +644,8 @@ class VSCodeAdapter(EditorAdapter):
             subprocess.Popen([code_bin, "--reuse-window", str(folder_path)], shell=True)
             VSCodeAdapter._cached_workspace = folder_path
             try:
-                from app.windows.apps import WindowsAppCatalog
-                WindowsAppCatalog().activate_running_window("vscode")
+                from app.platform_layer import platform_adapter
+                platform_adapter.focus_window("code")
             except Exception:
                 pass
             return True
@@ -656,12 +656,11 @@ class VSCodeAdapter(EditorAdapter):
     def next_file(self) -> bool:
         """Switches to the next editor tab in VS Code (Ctrl+PageDown)."""
         try:
-            from app.windows.apps import WindowsAppCatalog
-            WindowsAppCatalog().activate_running_window("vscode")
-            from app.automation.input_adapter import WindowsInputAdapter
+            from app.platform_layer import platform_adapter
+            platform_adapter.focus_window("code")
             import time
             time.sleep(0.05)
-            WindowsInputAdapter.hotkey(["ctrl", "pagedown"])
+            platform_adapter.send_hotkey("ctrl", "pagedown")
             return True
         except Exception as e:
             logger.error(f"Failed to switch to next file: {e}")
@@ -670,12 +669,11 @@ class VSCodeAdapter(EditorAdapter):
     def previous_file(self) -> bool:
         """Switches to the previous editor tab in VS Code (Ctrl+PageUp)."""
         try:
-            from app.windows.apps import WindowsAppCatalog
-            WindowsAppCatalog().activate_running_window("vscode")
-            from app.automation.input_adapter import WindowsInputAdapter
+            from app.platform_layer import platform_adapter
+            platform_adapter.focus_window("code")
             import time
             time.sleep(0.05)
-            WindowsInputAdapter.hotkey(["ctrl", "pageup"])
+            platform_adapter.send_hotkey("ctrl", "pageup")
             return True
         except Exception as e:
             logger.error(f"Failed to switch to previous file: {e}")
@@ -707,15 +705,16 @@ class VSCodeAdapter(EditorAdapter):
 
     @staticmethod
     def _get_code_cli() -> str:
-        """Resolves the executable path to code.cmd or code.exe for reliable CLI execution."""
+        """Resolves the 'code' CLI path cross-platform via platform_adapter, then PATH fallback."""
         try:
-            from app.windows.apps import WindowsAppCatalog
-            exe_path, _ = WindowsAppCatalog().find_executable("vscode")
-            if exe_path:
-                return exe_path
+            from app.platform_layer import platform_adapter
+            exe = platform_adapter.get_vscode_executable()
+            if exe:
+                return exe
         except Exception:
             pass
-        return "code"
+        import shutil
+        return shutil.which("code") or "code"
 
     def jump_to_line(self, line_number: int) -> bool:
         """
@@ -727,8 +726,8 @@ class VSCodeAdapter(EditorAdapter):
         """
         # Ensure VS Code window is visible and focused first so jump and scroll are immediately visible
         try:
-            from app.windows.apps import WindowsAppCatalog
-            WindowsAppCatalog().activate_running_window("vscode")
+            from app.platform_layer import platform_adapter
+            platform_adapter.focus_window("code")
         except Exception:
             pass
 
@@ -761,25 +760,25 @@ class VSCodeAdapter(EditorAdapter):
         # Layer 3: Keyboard automation fallback (Ctrl+G -> line_number -> Enter)
         if not jumped:
             try:
-                from app.windows.apps import WindowsAppCatalog
-                WindowsAppCatalog().activate_running_window("vscode")
+                from app.platform_layer import platform_adapter
+                platform_adapter.focus_window("code")
                 import time
-                from app.automation.input_adapter import WindowsInputAdapter
                 time.sleep(0.05)
-                WindowsInputAdapter.hotkey(["ctrl", "g"])
+                platform_adapter.send_hotkey("ctrl", "g")
                 time.sleep(0.08)
-                WindowsInputAdapter.type_text(str(line_number))
+                platform_adapter.type_text(str(line_number))
                 time.sleep(0.05)
-                WindowsInputAdapter.press_key("enter")
+                platform_adapter.press_key("enter")
                 jumped = True
                 logger.info(f"Jumped to line {line_number} via Ctrl+G hotkey.")
             except Exception as e:
                 logger.warning(f"Failed to send Ctrl+G: {e}")
 
+
         # Ensure VS Code window is visible and focused so the user actually sees the line
         try:
-            from app.windows.apps import WindowsAppCatalog
-            WindowsAppCatalog().activate_running_window("vscode")
+            from app.platform_layer import platform_adapter
+            platform_adapter.focus_window("code")
         except Exception:
             pass
 
@@ -803,8 +802,8 @@ class VSCodeAdapter(EditorAdapter):
             subprocess.Popen(cmd, shell=True)
             VSCodeAdapter._cached_file = file_path
             try:
-                from app.windows.apps import WindowsAppCatalog
-                WindowsAppCatalog().activate_running_window("vscode")
+                from app.platform_layer import platform_adapter
+                platform_adapter.focus_window("code")
             except Exception:
                 pass
             return True
@@ -839,8 +838,8 @@ class VSCodeAdapter(EditorAdapter):
         # Layer 2: Keyboard automation fallback (Ctrl+W)
         if not closed:
             try:
-                from app.automation.input_adapter import WindowsInputAdapter
-                WindowsInputAdapter.hotkey(["ctrl", "w"])
+                from app.platform_layer import platform_adapter
+                platform_adapter.send_hotkey("ctrl", "w")
                 closed = True
                 logger.info(f"Closed {display_name} via Ctrl+W hotkey.")
             except Exception as e:
@@ -964,9 +963,18 @@ class VSCodeAdapter(EditorAdapter):
         active_file = self.get_active_file()
         if active_file and active_file.is_file():
             if active_file.suffix == ".py":
-                subprocess.Popen(f'start cmd /k python "{active_file}"', shell=True)
-                return True
+                try:
+                    from app.platform_layer import platform_adapter
+                    platform_adapter.run_user_code_in_terminal(active_file)
+                    return True
+                except Exception:
+                    # Fallback: launch with sys.executable in a detached process
+                    import sys as _sys
+                    subprocess.Popen([_sys.executable, str(active_file)],
+                                     creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+                    return True
         return False
+
 
     def undo(self) -> bool:
         # 1. Try code_patch_engine (semantic in-memory history & disk backup)
@@ -1040,3 +1048,6 @@ def _rglob_bounded(root: Path, filename: str, max_depth: int) -> List[Path]:
     except (PermissionError, OSError):
         pass
     return results
+
+
+

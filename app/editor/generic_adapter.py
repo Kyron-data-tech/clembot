@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -40,7 +41,13 @@ class GenericWindowsEditorAdapter(EditorAdapter):
             if npp:
                 subprocess.Popen([npp, f"-n{line_number}", str(self.current_file)])
                 return True
-            os.startfile(str(self.current_file))
+            # Cross-platform: open the file with its default application
+            if hasattr(os, "startfile"):
+                os.startfile(str(self.current_file))
+            elif sys.platform == "darwin":
+                subprocess.Popen(["/usr/bin/open", str(self.current_file)])
+            else:
+                subprocess.Popen(["xdg-open", str(self.current_file)])
             return True
         return False
 
@@ -78,8 +85,17 @@ class GenericWindowsEditorAdapter(EditorAdapter):
 
     def run_code(self) -> bool:
         if self.current_file and self.current_file.suffix == ".py":
-            subprocess.Popen(f'start cmd /k python "{self.current_file}"', shell=True)
-            return True
+            try:
+                from app.platform_layer import platform_adapter
+                platform_adapter.run_user_code_in_terminal(self.current_file)
+                return True
+            except Exception:
+                # Fallback: run directly with sys.executable
+                subprocess.Popen(
+                    [sys.executable, str(self.current_file)],
+                    creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+                )
+                return True
         return False
 
     def undo(self) -> bool:

@@ -1,9 +1,7 @@
 import re
 from pathlib import Path
 from typing import Optional
-from app.automation.input_adapter import WindowsInputAdapter
-from app.browser.controller import BrowserController
-from app.clipboard.manager import WindowsClipboardManager
+
 from app.commands.friendly_errors import friendly_errors
 from app.core.models import ActionResult, AgentAction
 from app.editor.code_intelligence import CodeIntelligenceEngine
@@ -12,25 +10,49 @@ from app.filesystem.paths import WindowsPathResolver
 from app.filesystem.search import FileSearchService
 from app.filesystem.service import FileSystemService
 from app.logging.logger import logger
-from app.windows.apps import WindowsAppCatalog
-from app.windows.system import WindowsSystemControls
-from app.windows.window_manager import WindowsWindowManager
+from app.platform_layer import KeyMap, platform_adapter
+
+
+class _RouterClipboardAdapter:
+    def clear(self) -> str:
+        return platform_adapter.clear_clipboard()
+
+
+class _RouterInputAdapter:
+    def copy(self) -> None:
+        platform_adapter.send_hotkey(*KeyMap.copy())
+
+    def paste(self) -> None:
+        platform_adapter.send_hotkey(*KeyMap.paste())
+
+    def select_all(self) -> None:
+        platform_adapter.send_hotkey(*KeyMap.select_all())
+
+    def undo(self) -> None:
+        platform_adapter.send_hotkey(*KeyMap.undo())
+
+    def redo(self) -> None:
+        platform_adapter.send_hotkey(*KeyMap.redo())
+
+    def save(self) -> None:
+        platform_adapter.send_hotkey(*KeyMap.save())
 
 
 class ActionRouter:
     """
-    Executes AgentAction objects by routing them to the appropriate Windows subsystem.
+    Executes AgentAction objects by routing them to the appropriate platform subsystem.
     Returns an ActionResult detailing outcome and response.
     """
 
     def __init__(self):
-        self.fs = FileSystemService()
-        self.search = FileSearchService()
-        self.apps = WindowsAppCatalog()
-        self.windows = WindowsWindowManager()
-        self.browser = BrowserController()
-        self.clipboard = WindowsClipboardManager()
-        self.input_adapter = WindowsInputAdapter()
+        self.platform = platform_adapter
+        self.fs = getattr(self.platform, "_fs_service", None) or FileSystemService()
+        self.search = getattr(self.platform, "_search_service", None) or FileSearchService()
+        self.apps = getattr(self.platform, "_app_catalog", self.platform)
+        self.windows = getattr(self.platform, "_window_mgr", self.platform)
+        self.browser = getattr(self.platform, "_browser_ctrl", self.platform)
+        self.clipboard = _RouterClipboardAdapter()
+        self.input_adapter = _RouterInputAdapter()
         self.vscode = VSCodeAdapter()
         self.code_engine = CodeIntelligenceEngine()
 
@@ -55,7 +77,7 @@ class ActionRouter:
                 try:
                     direct_dir = Path(clean_folder)
                     if direct_dir.is_absolute() and direct_dir.is_dir():
-                        if self.vscode.get_active_file() or self.vscode.get_workspace() or self.apps.is_running("vscode"):
+                        if self.vscode.get_active_file() or self.vscode.get_workspace() or self.platform.is_app_running("vscode"):
                             self.vscode.open_file(direct_dir)
                             return ActionResult(action_id=action.id, action_type=act_type, success=True,
                                                 message=f"Opened folder '{direct_dir.name}' in VS Code.")
@@ -335,14 +357,17 @@ class ActionRouter:
             elif act_type == "browser_show_downloads":
                 ok, msg = self.browser.show_downloads(preferred_browser=action.app)
                 if not ok and msg == "NOT_DISPLAYED":
-                    # Fallback to opening Windows Downloads folder if no browser is displayed
-                    target_p = WindowsPathResolver.resolve("Downloads", context_base=context_base)
-                    if target_p and target_p.exists():
-                        import os
-                        os.startfile(str(target_p))
-                        return ActionResult(action_id=action.id, action_type="open_folder", success=True, message="Opening Downloads folder.")
-                    return ActionResult(action_id=action.id, action_type=act_type, success=False, message="Chrome or Brave is not currently displayed.")
+                    # Fallback: open the system Downloads folder via the platform adapter
+                    downloads_path = self.platform.get_standard_folders().get("Downloads")
+                    if downloads_path and downloads_path.exists():
+                        try:
+                            folder_msg = self.platform.open_folder(downloads_path)
+                            return ActionResult(action_id=action.id, action_type="open_folder", success=True, message=folder_msg)
+                        except Exception:
+                            pass
+                    return ActionResult(action_id=action.id, action_type=act_type, success=False, message="No browser is open and could not locate the Downloads folder.")
                 return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
+
 
             elif act_type == "browser_close_tab":
                 ok, msg = self.browser.close_tab(preferred_browser=action.app)
@@ -386,27 +411,29 @@ class ActionRouter:
 
             # 4. System & Clipboard
             elif act_type == "screenshot":
-                path, msg = WindowsSystemControls.capture_screenshot()
+                path, msg = self.platform.capture_screenshot()
                 return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg, data={"path": str(path)})
 
             elif act_type == "screen_read":
                 # Capture screen → binary threshold → AI vision description
-                from app.windows.screen_reader import ScreenReader
-                user_prompt = action.query or "What is displayed on this screen? Describe it briefly."
-                description = ScreenReader.describe_with_ai(prompt=user_prompt)
+                try:
+                    from app.windows.screen_reader import ScreenReader
+                    user_prompt = action.query or "What is displayed on this screen? Describe it briefly."
+                    description = ScreenReader.describe_with_ai(prompt=user_prompt)
+                except Exception as e:
+                    description = f"Screen reading unavailable: {e}"
                 return ActionResult(action_id=action.id, action_type=act_type, success=True, message=description)
 
-
             elif act_type == "volume_up":
-                msg = WindowsSystemControls.volume_up()
+                msg = self.platform.volume_up()
                 return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg)
 
             elif act_type == "volume_down":
-                msg = WindowsSystemControls.volume_down()
+                msg = self.platform.volume_down()
                 return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg)
 
             elif act_type == "volume_mute":
-                msg = WindowsSystemControls.volume_mute_toggle()
+                msg = self.platform.volume_mute_toggle()
                 return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg)
 
             elif act_type == "copy":

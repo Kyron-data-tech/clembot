@@ -1,0 +1,26 @@
+# =============================================================================
+# Clembot — macOS (Apple Silicon arm64 / Intel) Dependencies
+#
+# Prerequisites — run these once before pip install:
+#   brew install portaudio          # PortAudio for PyAudio microphone input
+#
+# Create & activate a virtual environment, then run:
+#   python3 -m venv venv
+#   source venv/bin/activate
+#   pip install -r requirements/macos.txt
+#
+# Or use the automated installer:
+#   bash scripts/install_macos.sh
+# =============================================================================
+
+-r base.txt
+
+# ── macOS Native Frameworks (pyobjc) ─────────────────────────────────────────
+# Required for PyAutoGUI Quartz integration and AXIsProcessTrusted accessibility
+pyobjc-core>=10.0; sys_platform == 'darwin'
+pyobjc-framework-ApplicationServices>=10.0; sys_platform == 'darwin'
+pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'
+pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'
+
+# ── Packaging (Optional — for building macOS .app / .dmg) ────────────────────
+pyinstaller>=6.0.0

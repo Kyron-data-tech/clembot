@@ -7,8 +7,9 @@ from app.ai.factory import AIProviderFactory
 from app.commands.fast_router import FastCommandRouter
 from app.commands.router import ActionRouter
 from app.config.settings import settings
-from app.context.context_manager import WindowsContextManager
+from app.context.context_manager import ContextManager
 from app.core.event_bus import event_bus
+from app.platform_layer import platform_adapter
 from app.core.models import (
     ActionResult,
     AgentAction,
@@ -37,7 +38,7 @@ class AssistantOrchestrator:
         self.wake_detector = WakeWordDetector()
         self.fast_router = FastCommandRouter()
         self.ai_provider = AIProviderFactory.get_provider()
-        self.context_manager = WindowsContextManager()
+        self.context_manager = ContextManager()
         self.memory = ConversationalMemory()
         self.router = ActionRouter()
 
@@ -165,13 +166,7 @@ class AssistantOrchestrator:
         # Snapshot the foreground window RIGHT NOW — before we steal focus —
         # so close/minimize/maximize act on the user's app, not Clembot.
         try:
-            import win32gui as _w32
-            _hwnd = _w32.GetForegroundWindow()
-            _title = _w32.GetWindowText(_hwnd) if _hwnd else ""
-            # Only store if it's a real user window (not the desktop / taskbar)
-            if _hwnd and _title and "clembot" not in _title.lower():
-                self.router.windows.last_user_hwnd = _hwnd
-                self.router.windows.last_user_title = _title
+            platform_adapter.capture_foreground_window()
         except Exception:
             pass
 

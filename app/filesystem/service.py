@@ -11,8 +11,9 @@ from app.logging.logger import logger
 
 class FileSystemService:
     """
-    Robust, safe Windows filesystem operations.
-    Enforces non-destructive defaults (Send2Trash to Recycle Bin) and dynamic path resolution.
+    Robust, safe cross-platform filesystem operations.
+    Enforces non-destructive defaults (Send2Trash to Recycle Bin / macOS Trash) and
+    dynamic path resolution.  Works on Windows and macOS.
     """
 
     def __init__(self):
@@ -38,16 +39,24 @@ class FileSystemService:
         if not target.is_dir():
             target = target.parent
 
-        os.startfile(str(target))
+        if hasattr(os, "startfile"):
+            os.startfile(str(target))
+        else:
+            import subprocess
+            subprocess.Popen(["open", str(target)])
         return f"Opening {target.name or str(target)}."
 
     def open_file(self, raw_path: Union[str, Path]) -> str:
-        """Opens a file with its default Windows application."""
+        """Opens a file with its default application."""
         target = self.resolve(raw_path)
         if not target.exists():
             raise FileNotFoundError(f"File not found: {target}")
 
-        os.startfile(str(target))
+        if hasattr(os, "startfile"):
+            os.startfile(str(target))
+        else:
+            import subprocess
+            subprocess.Popen(["open", str(target)])
         return f"Opening {target.name}."
 
     def create_folder(self, raw_path: Union[str, Path], base_context: Optional[Path] = None) -> str:

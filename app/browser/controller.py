@@ -8,8 +8,21 @@ import time
 import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 import psutil
-import pyautogui
-import uiautomation as auto
+
+try:
+    import pyautogui
+    _HAS_PYAUTOGUI = True
+except Exception:
+    pyautogui = None  # type: ignore[assignment]
+    _HAS_PYAUTOGUI = False
+
+try:
+    import uiautomation as auto
+    _HAS_UIAUTOMATION = True
+except Exception:
+    auto = None  # type: ignore[assignment]
+    _HAS_UIAUTOMATION = False
+
 
 try:
     import win32con

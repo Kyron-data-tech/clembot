@@ -1,8 +1,10 @@
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-import win32api
+try:
+    import win32api
+except ImportError:
+    win32api = None
 
 from app.logging.logger import logger
 
@@ -76,11 +78,12 @@ class WindowsPathResolver:
         """Returns a list of all mounted drive letters (e.g. ['C:\\', 'D:\\'])."""
         drives = []
         try:
-            bitmask = win32api.GetLogicalDrives()
-            for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
-                if bitmask & 1:
-                    drives.append(f"{letter}:\\")
-                bitmask >>= 1
+            if win32api is not None:
+                bitmask = win32api.GetLogicalDrives()
+                for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+                    if bitmask & 1:
+                        drives.append(f"{letter}:\\")
+                    bitmask >>= 1
         except Exception as e:
             logger.debug(f"win32api GetLogicalDrives failed, fallback to drive check: {e}")
             for letter in "CDEFGHIJKLMNOPQRSTUVWXYZ":

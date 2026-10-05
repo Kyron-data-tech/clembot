@@ -1,5 +1,5 @@
 # =============================================================================
-# Clembot .gitignore — Clean Repository for GitHub
+# Clembot .gitignore — Windows & macOS
 # =============================================================================
 
 # ─── Secrets & API Keys (NEVER commit these) ─────────────────────────────────
@@ -12,6 +12,7 @@
 *.cert
 secrets.json
 credentials.json
+service_account*.json
 
 # ─── Runtime & State Files ────────────────────────────────────────────────────
 *.log
@@ -46,7 +47,7 @@ htmlcov/
 *.pyo
 
 # ─── Virtual Environments ─────────────────────────────────────────────────────
-# venv is intentionally excluded — users create their own from requirements.txt
+# venv is intentionally excluded — users create their own from requirements/
 venv/
 .venv/
 env/
@@ -65,10 +66,11 @@ wheels/
 pip-wheel-metadata/
 MANIFEST
 
-# PyInstaller output
+# PyInstaller
 *.spec
 *.exe
 *.dmg
+*.app/
 
 # ─── VS Code Extension Build Artifacts ────────────────────────────────────────
 vscode-extension/node_modules/
@@ -86,7 +88,7 @@ vscode-extension/out/
 *.sublime-workspace
 *.code-workspace
 
-# ─── Windows & OS Junk ────────────────────────────────────────────────────────
+# ─── Windows OS Junk ──────────────────────────────────────────────────────────
 Thumbs.db
 Thumbs.db:encryptable
 ehthumbs.db
@@ -94,9 +96,16 @@ ehthumbs_vista.db
 Desktop.ini
 $RECYCLE.BIN/
 *.lnk
+
+# ─── macOS OS Junk ────────────────────────────────────────────────────────────
 .DS_Store
 .AppleDouble
 .LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
 
 # ─── Test & Coverage Artifacts ────────────────────────────────────────────────
 .coverage
@@ -112,7 +121,7 @@ scratch/
 temp_test_*/
 
 # ─── Whisper Model Cache (large binary files, downloaded on demand) ───────────
-# Models are auto-downloaded to %APPDATA%/faster_whisper — not in repo
+# Models are auto-downloaded to %APPDATA%/faster_whisper or ~/.cache — not in repo
 faster_whisper_models/
 whisper_models/
 *.bin
@@ -130,6 +139,7 @@ Screenshot_*.png
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+package-lock.json
 
 # ─── Merge & System Artifacts ─────────────────────────────────────────────────
 *.orig

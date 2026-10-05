@@ -14,16 +14,44 @@ from app.core.models import AssistantState
 from app.core.orchestrator import orchestrator
 from app.ipc.server import ipc_server
 from app.logging.logger import logger
+from app.platform_layer import platform_adapter
 from app.speech.engine_factory import create_speech_engine
 from app.tts.voice_service import voice_service
 from app.ui.main_window import ClembotMainWindow
 from app.ui.tray import ClembotSystemTray
 
 
+def validate_environment() -> None:
+    """Verifies that the operating system matches the installed dependencies."""
+    is_windows = sys.platform == "win32"
+    is_macos = sys.platform == "darwin"
+
+    if is_windows:
+        try:
+            import win32gui
+        except ImportError:
+            print("\n" + "=" * 65)
+            print("[ERROR] Clembot is running on Windows, but Windows packages are missing!")
+            print("It appears that requirements/macos.txt or base.txt was installed.")
+            print("Please fix by running:")
+            print("    pip install -r requirements/windows.txt")
+            print("=" * 65 + "\n")
+            sys.exit(1)
+
+    elif is_macos:
+        # Check permissions on macOS
+        from app.platform_layer.macos.permissions import MacOSPermissions
+        results = MacOSPermissions.check_all()
+        missing = [name for name, ok, _ in results if not ok]
+        if missing:
+            print("\n" + MacOSPermissions.get_permission_guidance() + "\n")
+
+
 def run_cli_loop():
     """Runs a lightweight CLI interactive loop for console testing."""
+    plat_name = platform_adapter.get_platform_name()
     print("=" * 60)
-    print("  CLEMBOT — Windows Voice Assistant (CLI Interactive Mode)")
+    print(f"  CLEMBOT — {plat_name} (CLI Interactive Mode)")
     print("  Say or type: 'Clembot activate yourself' to start")
     print("  Say or type: 'Clembot deactivate' to sleep")
     print("  Type 'exit' to quit.")
@@ -42,10 +70,12 @@ def run_cli_loop():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Clembot Windows Voice Assistant")
+    validate_environment()
+
+    parser = argparse.ArgumentParser(description="Clembot Voice Assistant")
     parser.add_argument("--cli", action="store_true", help="Run in CLI interactive mode without GUI")
     parser.add_argument("--push-to-talk", action="store_true", help="Enable Push-to-Talk mode only")
-    parser.add_argument("--no-tray", action="store_true", help="Disable Windows System Tray icon")
+    parser.add_argument("--no-tray", action="store_true", help="Disable System Tray icon")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--provider", choices=["heuristic", "gemini", "ollama", "openai"], help="Override active AI provider")
     args = parser.parse_args()
@@ -57,7 +87,7 @@ def main():
         settings.default_ai_provider = args.provider
         orchestrator.reload_ai_provider()
 
-    logger.info(f"Starting Clembot v{settings.version} on Windows...")
+    logger.info(f"Starting Clembot v{settings.version} on {platform_adapter.get_platform_name()}...")
 
     # 1. Start Local IPC Server for VS Code Bridge
     ipc_server.start()
