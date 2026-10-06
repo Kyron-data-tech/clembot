@@ -46,6 +46,7 @@ class WhisperEngine(BaseSpeechRecognizer):
     SAMPLE_RATE = 16000
     CHANNELS = 1
     BLOCK_SIZE = 1600  # 100ms chunks
+    INITIAL_PROMPT = "Clembot, activate, deactivate, VS Code, Python, terminal, line, tab, Chrome, Brave, open folder, replace, insert, delete, show line."
 
     def __init__(self):
         self.mic_index: Optional[int] = settings.mic_device_index
@@ -260,12 +261,14 @@ class WhisperEngine(BaseSpeechRecognizer):
             if model is None:
                 return
 
+            lang = "en" if settings.whisper_model_size.endswith(".en") else None
             segments, _info = model.transcribe(
                 pcm,
-                language="en",
+                language=lang,
                 beam_size=1,           # fast greedy decode
                 vad_filter=True,       # built-in silence suppression
                 vad_parameters={"min_silence_duration_ms": 300},
+                initial_prompt=self.INITIAL_PROMPT,
             )
 
             # Collect all segment texts
@@ -332,7 +335,14 @@ class WhisperEngine(BaseSpeechRecognizer):
             if recorded_chunks:
                 pcm = np.concatenate(recorded_chunks).astype(np.float32) / 32768.0
                 model = self._load_model()
-                segments, _ = model.transcribe(pcm, language="en", beam_size=1, vad_filter=True)
+                lang = "en" if settings.whisper_model_size.endswith(".en") else None
+                segments, _ = model.transcribe(
+                    pcm,
+                    language=lang,
+                    beam_size=1,
+                    vad_filter=True,
+                    initial_prompt=self.INITIAL_PROMPT,
+                )
                 text = " ".join(seg.text for seg in segments).strip()
                 text = _clean_whisper_output(text)
                 if text:

@@ -13,10 +13,10 @@ from app.logging.logger import logger
 
 def run_applescript(script: str, timeout: float = 5.0) -> Tuple[bool, str]:
     """
-    Executes an AppleScript script using /usr/bin/osascript.
+    Executes an AppleScript one-liner using /usr/bin/osascript -e.
 
     Args:
-        script: AppleScript code to execute.
+        script: AppleScript code to execute (single line or short block).
         timeout: Maximum execution time in seconds.
 
     Returns:
@@ -51,7 +51,8 @@ def run_applescript(script: str, timeout: float = 5.0) -> Tuple[bool, str]:
 
 def run_multiline_applescript(script: str, timeout: float = 8.0) -> Tuple[bool, str]:
     """
-    Executes a multiline AppleScript via standard input.
+    Executes a multiline AppleScript via stdin (safer than -e for multi-line scripts).
+    Preferred over run_applescript for anything spanning more than one line.
     """
     try:
         proc = subprocess.run(
@@ -78,3 +79,34 @@ def run_multiline_applescript(script: str, timeout: float = 8.0) -> Tuple[bool, 
     except Exception as e:
         logger.error(f"Unexpected AppleScript execution error: {e}")
         return False, str(e)
+
+
+def is_app_running(app_name: str) -> bool:
+    """
+    Checks whether an application is currently running by querying System Events.
+    More reliable than 'application X is running' which can hang if the app is
+    in a sandboxed state.
+    """
+    script = f'''
+    tell application "System Events"
+        return (count of (every process whose name is "{app_name}")) > 0
+    end tell
+    '''
+    success, out = run_multiline_applescript(script, timeout=3.0)
+    return success and out.strip().lower() == "true"
+
+
+def get_app_window_count(app_name: str) -> int:
+    """Returns the number of open windows for the given application process."""
+    script = f'''
+    tell application "System Events"
+        if (count of (every process whose name is "{app_name}")) > 0 then
+            return count of windows of first process whose name is "{app_name}"
+        end if
+        return 0
+    end tell
+    '''
+    success, out = run_multiline_applescript(script, timeout=3.0)
+    if success and out.strip().isdigit():
+        return int(out.strip())
+    return 0

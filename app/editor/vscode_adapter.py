@@ -10,13 +10,13 @@ All edit operations work directly on disk, so no extension is required.
 """
 
 import ctypes
-import ctypes.wintypes as wt
 import json
 import os
 import re
 import shutil
 import sqlite3
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import unquote, urlparse
@@ -49,17 +49,41 @@ def _ipc_post(path: str, payload: Dict[str, Any], timeout: float = 4.0) -> Dict[
 # VS Code state readers
 # ---------------------------------------------------------------------------
 
+def _get_vscode_user_data_dirs() -> List[Path]:
+    """
+    Returns existing user data paths where VS Code User configuration/storage lives
+    across macOS, Windows, and Linux.
+    """
+    base_roots: List[Path] = []
+    if sys.platform == "darwin":
+        mac_app_support = Path.home() / "Library" / "Application Support"
+        if mac_app_support.is_dir():
+            base_roots.append(mac_app_support)
+    elif sys.platform == "win32":
+        appdata = os.environ.get("APPDATA")
+        if appdata and os.path.isdir(appdata):
+            base_roots.append(Path(appdata))
+    else:
+        config_dir = Path.home() / ".config"
+        if config_dir.is_dir():
+            base_roots.append(config_dir)
+
+    results: List[Path] = []
+    for base in base_roots:
+        for variant in ("Code", "Code - Insiders", "VSCodium"):
+            cand = base / variant / "User"
+            if cand.is_dir():
+                results.append(cand)
+    return results
+
+
 def _get_vscode_workspace_from_storage() -> Optional[Path]:
     """
     Read VS Code's globalStorage/storage.json to find the current workspace folder.
     Returns the workspace Path or None.
     """
-    appdata = os.environ.get("APPDATA", "")
-    if not appdata:
-        return None
-
-    for variant in ("Code", "Code - Insiders", "VSCodium"):
-        storage = Path(appdata) / variant / "User" / "globalStorage" / "storage.json"
+    for user_dir in _get_vscode_user_data_dirs():
+        storage = user_dir / "globalStorage" / "storage.json"
         if not storage.is_file():
             continue
         try:
@@ -100,28 +124,60 @@ def _uri_to_path(uri: str) -> Optional[Path]:
 
 def _get_vscode_window_titles() -> List[str]:
     """
-    Enumerate all window titles belonging to a VS Code process using
-    pure ctypes (avoids the win32gui EnumWindows callback-exception crash).
+    Enumerate all window titles belonging to a VS Code process.
+    On macOS: uses AppleScript via System Events.
+    On Windows: uses pure ctypes EnumWindows.
     """
-    titles: List[str] = []
-    WNDENUMPROC = ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
-
-    def _callback(hwnd: int, _: int) -> bool:
+    if sys.platform == "darwin":
         try:
-            # Quick visibility check
-            if not ctypes.windll.user32.IsWindowVisible(hwnd):
-                return True
-            buf = ctypes.create_unicode_buffer(512)
-            ctypes.windll.user32.GetWindowTextW(hwnd, buf, 512)
-            title = buf.value
-            if title and "Visual Studio Code" in title:
-                titles.append(title)
-        except Exception:
-            pass
-        return True
+            from app.platform_layer.macos.applescript import run_multiline_applescript
+            script = '''
+            tell application "System Events"
+                set out to ""
+                repeat with p in (every process whose name is "Code" or name is "Visual Studio Code")
+                    try
+                        repeat with w in windows of p
+                            set out to out & (name of w) & "|||"
+                        end repeat
+                    end try
+                end repeat
+                return out
+            end tell
+            '''
+            success, out = run_multiline_applescript(script, timeout=3.0)
+            if success and out:
+                return [t.strip() for t in out.split("|||") if t.strip()]
+        except Exception as e:
+            logger.debug(f"macOS VS Code window title query failed: {e}")
+        return []
 
-    ctypes.windll.user32.EnumWindows(WNDENUMPROC(_callback), 0)
-    return titles
+    if sys.platform == "win32" and hasattr(ctypes, "windll"):
+        titles: List[str] = []
+        try:
+            import ctypes.wintypes as wt
+            WNDENUMPROC = ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
+
+            def _callback(hwnd: int, _: int) -> bool:
+                try:
+                    if not ctypes.windll.user32.IsWindowVisible(hwnd):
+                        return True
+                    buf = ctypes.create_unicode_buffer(512)
+                    ctypes.windll.user32.GetWindowTextW(hwnd, buf, 512)
+                    title = buf.value
+                    if title and ("Visual Studio Code" in title or "Code" in title):
+                        titles.append(title)
+                except Exception:
+                    pass
+                return True
+
+            ctypes.windll.user32.EnumWindows(WNDENUMPROC(_callback), 0)
+            return titles
+        except Exception as e:
+            logger.debug(f"Windows EnumWindows error: {e}")
+            return []
+
+    return []
+
 
 
 def _parse_filename_from_title(title: str) -> Optional[str]:
@@ -160,16 +216,13 @@ def _resolve_from_vscdb() -> Optional[Path]:
     Works reliably without the VS Code extension, without window title inspection,
     and without GUI automation.
     """
-    appdata = os.environ.get("APPDATA", "")
-    if not appdata:
-        return None
-
     ws_folder = _get_vscode_workspace_from_storage() or VSCodeAdapter._cached_workspace
 
-    for variant in ("Code", "Code - Insiders", "VSCodium"):
-        ws_root = Path(appdata) / variant / "User" / "workspaceStorage"
+    for user_dir in _get_vscode_user_data_dirs():
+        ws_root = user_dir / "workspaceStorage"
         if not ws_root.is_dir():
             continue
+
 
         try:
             dirs = sorted(ws_root.glob("*"), key=lambda d: d.stat().st_mtime if d.is_dir() else 0, reverse=True)
@@ -641,11 +694,11 @@ class VSCodeAdapter(EditorAdapter):
         """Opens a folder in VS Code, activating the window."""
         try:
             code_bin = self._get_code_cli()
-            subprocess.Popen([code_bin, "--reuse-window", str(folder_path)], shell=True)
+            subprocess.Popen([code_bin, "--reuse-window", str(folder_path)], shell=(sys.platform == "win32"))
             VSCodeAdapter._cached_workspace = folder_path
             try:
                 from app.platform_layer import platform_adapter
-                platform_adapter.focus_window("code")
+                platform_adapter.focus_window("vscode")
             except Exception:
                 pass
             return True
@@ -654,26 +707,32 @@ class VSCodeAdapter(EditorAdapter):
             return False
 
     def next_file(self) -> bool:
-        """Switches to the next editor tab in VS Code (Ctrl+PageDown)."""
+        """Switches to the next editor tab in VS Code."""
         try:
             from app.platform_layer import platform_adapter
-            platform_adapter.focus_window("code")
+            platform_adapter.focus_window("vscode")
             import time
             time.sleep(0.05)
-            platform_adapter.send_hotkey("ctrl", "pagedown")
+            if sys.platform == "darwin":
+                platform_adapter.send_hotkey("command", "option", "right")
+            else:
+                platform_adapter.send_hotkey("ctrl", "pagedown")
             return True
         except Exception as e:
             logger.error(f"Failed to switch to next file: {e}")
             return False
 
     def previous_file(self) -> bool:
-        """Switches to the previous editor tab in VS Code (Ctrl+PageUp)."""
+        """Switches to the previous editor tab in VS Code."""
         try:
             from app.platform_layer import platform_adapter
-            platform_adapter.focus_window("code")
+            platform_adapter.focus_window("vscode")
             import time
             time.sleep(0.05)
-            platform_adapter.send_hotkey("ctrl", "pageup")
+            if sys.platform == "darwin":
+                platform_adapter.send_hotkey("command", "option", "left")
+            else:
+                platform_adapter.send_hotkey("ctrl", "pageup")
             return True
         except Exception as e:
             logger.error(f"Failed to switch to previous file: {e}")
@@ -721,13 +780,13 @@ class VSCodeAdapter(EditorAdapter):
         Jumps to and reveals a line in VS Code.
         Layer 1: IPC extension (in-process revealRange in center).
         Layer 2: CLI code --reuse-window --goto <file>:<line>.
-        Layer 3: Keyboard automation fallback (Ctrl+G -> line_number -> Enter).
+        Layer 3: Keyboard automation fallback (Quick Open goto line / Ctrl+G).
         Also ensures the VS Code window is activated and brought to the foreground.
         """
         # Ensure VS Code window is visible and focused first so jump and scroll are immediately visible
         try:
             from app.platform_layer import platform_adapter
-            platform_adapter.focus_window("code")
+            platform_adapter.focus_window("vscode")
         except Exception:
             pass
 
@@ -751,7 +810,7 @@ class VSCodeAdapter(EditorAdapter):
                 try:
                     code_bin = self._get_code_cli()
                     subprocess.Popen([code_bin, "--reuse-window", "--goto",
-                                      f"{active_file}:{line_number}"], shell=True)
+                                      f"{active_file}:{line_number}"], shell=(sys.platform == "win32"))
                     jumped = True
                     logger.info(f"Jumped to line {line_number} of {active_file.name} via CLI.")
                 except Exception as e:
@@ -778,7 +837,7 @@ class VSCodeAdapter(EditorAdapter):
         # Ensure VS Code window is visible and focused so the user actually sees the line
         try:
             from app.platform_layer import platform_adapter
-            platform_adapter.focus_window("code")
+            platform_adapter.focus_window("vscode")
         except Exception:
             pass
 
@@ -799,14 +858,18 @@ class VSCodeAdapter(EditorAdapter):
                 cmd.extend(["--goto", f"{file_path}:{line_number}"])
             else:
                 cmd.append(str(file_path))
-            subprocess.Popen(cmd, shell=True)
+            subprocess.Popen(cmd, shell=(sys.platform == "win32"))
             VSCodeAdapter._cached_file = file_path
             try:
                 from app.platform_layer import platform_adapter
-                platform_adapter.focus_window("code")
+                platform_adapter.focus_window("vscode")
             except Exception:
                 pass
             return True
+        except Exception as e:
+            logger.error(f"Failed to open {file_path} in VS Code: {e}")
+            return False
+
         except Exception as e:
             logger.error(f"Failed to open {file_path} in VS Code: {e}")
             return False
@@ -945,12 +1008,13 @@ class VSCodeAdapter(EditorAdapter):
             if res.get("success"):
                 return True
         try:
-            import pyautogui
-            pyautogui.hotkey("ctrl", "s")
+            from app.platform_layer import platform_adapter
+            platform_adapter.send_hotkey("ctrl", "s")
             return True
         except Exception:
             pass
         return False
+
 
     def run_code(self) -> bool:
         if self.is_available():

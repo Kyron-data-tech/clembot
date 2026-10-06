@@ -238,6 +238,24 @@ class TestScreenCommandsFastRouter(unittest.TestCase):
         self._assert_routes("what do you see on the screen", "screen_read")
         self._assert_routes("read what is on the screen", "screen_read")
 
+    def test_capture_raw_macos_screencapture_fallback(self):
+        """Verifies macOS screencapture CLI fallback when ImageGrab fails on Darwin."""
+        import sys
+        dummy_img = Image.new("RGB", (200, 200), color="blue")
+
+        def fake_screencapture(cmd, capture_output=True, timeout=5.0):
+            target_path = cmd[2]
+            dummy_img.save(target_path, "PNG")
+            mock_proc = MagicMock()
+            mock_proc.returncode = 0
+            return mock_proc
+
+        with patch("PIL.ImageGrab.grab", side_effect=OSError("Display capture error")), \
+             patch("sys.platform", "darwin"), \
+             patch("subprocess.run", side_effect=fake_screencapture):
+            captured = ScreenReader.capture_raw()
+            self.assertEqual(captured.size, (200, 200))
+
 
 if __name__ == "__main__":
     unittest.main()

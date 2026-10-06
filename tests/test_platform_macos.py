@@ -359,11 +359,59 @@ class TestMacOSBrowserController(unittest.TestCase):
         self.assertIn("closed", msg.lower())
 
 
+    @patch("app.platform_layer.macos.browser.run_multiline_applescript", return_value=(True, ""))
+    @patch("app.platform_layer.macos.browser.run_applescript", return_value=(True, "true"))
+    def test_router_compatible_method_aliases(self, mock_as, mock_ml):
+        """Verifies that all ActionRouter browser method names exist on MacOSBrowserController."""
+        b = self._make_browser()
+        self.assertTrue(callable(getattr(b, "switch_to_tab_number")))
+        self.assertTrue(callable(getattr(b, "open_new_tab")))
+        self.assertTrue(callable(getattr(b, "close_tab")))
+        self.assertTrue(callable(getattr(b, "next_tab")))
+        self.assertTrue(callable(getattr(b, "previous_tab")))
+        self.assertTrue(callable(getattr(b, "reopen_tab")))
+        self.assertTrue(callable(getattr(b, "reload")))
+        self.assertTrue(callable(getattr(b, "bookmark_page")))
+        self.assertTrue(callable(getattr(b, "zoom_in")))
+        self.assertTrue(callable(getattr(b, "zoom_out")))
+        self.assertTrue(callable(getattr(b, "zoom_reset")))
+        self.assertTrue(callable(getattr(b, "new_incognito_window")))
+        self.assertTrue(callable(getattr(b, "show_history")))
+        self.assertTrue(callable(getattr(b, "show_downloads")))
+        self.assertTrue(callable(getattr(b, "count_tabs")))
+        self.assertTrue(callable(getattr(b, "open_destination")))
+
+        # Test execution of aliases with explicit browser
+        ok, _ = b.open_new_tab(preferred_browser="chrome")
+        self.assertTrue(ok)
+        ok, _ = b.close_tab(preferred_browser="chrome")
+        self.assertTrue(ok)
+        ok, _ = b.next_tab(preferred_browser="chrome")
+        self.assertTrue(ok)
+        ok, _ = b.previous_tab(preferred_browser="chrome")
+        self.assertTrue(ok)
+        ok, _ = b.reopen_tab(preferred_browser="chrome")
+        self.assertTrue(ok)
+        ok, _ = b.reload(preferred_browser="chrome")
+        self.assertTrue(ok)
+        ok, _ = b.bookmark_page(preferred_browser="chrome")
+        self.assertTrue(ok)
+        ok, _ = b.zoom_in(preferred_browser="chrome")
+        self.assertTrue(ok)
+        ok, _ = b.zoom_out(preferred_browser="chrome")
+        self.assertTrue(ok)
+        ok, _ = b.zoom_reset(preferred_browser="chrome")
+        self.assertTrue(ok)
+        ok, _ = b.new_incognito_window(preferred_browser="chrome")
+        self.assertTrue(ok)
+
+
 # ===========================================================================
 # 4.  MacOSWindowManager
 # ===========================================================================
 
 class TestMacOSWindowManager(unittest.TestCase):
+
 
     def _make_wm(self):
         from app.platform_layer.macos.window_mgr import MacOSWindowManager
@@ -391,6 +439,21 @@ class TestMacOSWindowManager(unittest.TestCase):
         wm = self._make_wm()
         ok = wm.focus_window("Finder")
         self.assertTrue(ok)
+
+    @patch("app.platform_layer.macos.window_mgr.run_applescript", return_value=(True, ""))
+    def test_focus_window_resolves_code_alias(self, mock_as):
+        wm = self._make_wm()
+        ok = wm.focus_window("code")
+        self.assertTrue(ok)
+        mock_as.assert_called_with('tell application "Visual Studio Code" to activate')
+
+    @patch("app.platform_layer.macos.window_mgr.run_applescript", return_value=(True, ""))
+    def test_focus_window_resolves_chrome_alias(self, mock_as):
+        wm = self._make_wm()
+        ok = wm.focus_window("chrome")
+        self.assertTrue(ok)
+        mock_as.assert_called_with('tell application "Google Chrome" to activate')
+
 
     @patch("app.platform_layer.macos.window_mgr.run_multiline_applescript",
            return_value=(True, "Finder"))
@@ -550,6 +613,20 @@ class TestMacOSSystemControls(unittest.TestCase):
             self.assertIn("keystroke", call_arg)
         finally:
             sys_mod.pyautogui = original_pyautogui
+
+    @patch("app.platform_layer.macos.system.run_applescript", return_value=(True, ""))
+    def test_press_key_enter_uses_key_code(self, mock_as):
+        """Enter key uses key code 36 in AppleScript rather than typing 'enter'."""
+        import app.platform_layer.macos.system as sys_mod
+        orig = sys_mod.pyautogui
+        sys_mod.pyautogui = None
+        try:
+            cls = self._cls()
+            cls.press_key("enter")
+            mock_as.assert_called_once_with('tell application "System Events" to key code 36')
+        finally:
+            sys_mod.pyautogui = orig
+
 
 
 # ===========================================================================

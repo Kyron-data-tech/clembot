@@ -135,6 +135,32 @@ class TestWhisperEngineInit(unittest.TestCase):
         self.assertIsInstance(mics, list)
         self.assertGreater(len(mics), 0)
 
+    def test_whisper_engine_initial_prompt_configured(self):
+        """WhisperEngine has technical domain initial_prompt defined."""
+        from app.speech.whisper_engine import WhisperEngine
+        self.assertIn("Clembot", WhisperEngine.INITIAL_PROMPT)
+        self.assertIn("VS Code", WhisperEngine.INITIAL_PROMPT)
+
+    def test_transcribe_and_emit_uses_initial_prompt(self):
+        """_transcribe_and_emit passes initial_prompt to model.transcribe."""
+        from app.speech.whisper_engine import WhisperEngine
+        import numpy as np
+
+        engine = WhisperEngine()
+        mock_model = MagicMock()
+        mock_segment = MagicMock()
+        mock_segment.text = "open file main.py"
+        mock_model.transcribe.return_value = ([mock_segment], None)
+        engine._model = mock_model
+
+        dummy_chunks = [np.zeros(1600, dtype=np.int16) for _ in range(5)]
+        engine._transcribe_and_emit(dummy_chunks)
+
+        self.assertTrue(mock_model.transcribe.called)
+        _, kwargs = mock_model.transcribe.call_args
+        self.assertEqual(kwargs.get("initial_prompt"), WhisperEngine.INITIAL_PROMPT)
+        self.assertEqual(kwargs.get("language"), "en")
+
 
 if __name__ == "__main__":
     unittest.main()

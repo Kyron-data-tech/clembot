@@ -186,7 +186,19 @@ Return a valid JSON object only — no markdown fences:
 
     @classmethod
     def build_system_instruction(cls) -> str:
-        return cls.SYSTEM_INSTRUCTION
+        try:
+            from app.platform_layer.factory import platform_adapter
+            platform_name = platform_adapter.get_platform_name()
+        except Exception:
+            platform_name = "Windows 10/11"
+
+        instruction = cls.SYSTEM_INSTRUCTION
+        if "macOS" in platform_name:
+            instruction = instruction.replace("Windows 10/11", platform_name)
+            instruction = instruction.replace("Control Windows", "Control macOS")
+            instruction = instruction.replace("Windows Text-to-Speech", "macOS Text-to-Speech")
+            instruction = instruction.replace("Standard Windows/File/Browser actions", "Standard macOS/File/Browser actions")
+        return instruction
 
     @classmethod
     def build_user_prompt(cls, command: str, context: ScreenContext) -> str:
@@ -202,11 +214,17 @@ Return a valid JSON object only — no markdown fences:
             sections.append("Recent Conversation:\n" + "\n".join(recent_turns))
 
         # 2. Real-time Desktop Context
+        try:
+            from app.platform_layer.factory import platform_adapter
+            plat_header = f"{platform_adapter.get_platform_name()} Desktop State"
+        except Exception:
+            plat_header = "Windows Desktop State"
+
         desktop_info = [
             f"- Active Window: {context.active_window_title or 'Unknown'} ({context.active_app or 'Unknown'})",
             f"- Focused File Explorer Path: {context.explorer_path or 'None'}",
         ]
-        sections.append("Windows Desktop State:\n" + "\n".join(desktop_info))
+        sections.append(f"{plat_header}:\n" + "\n".join(desktop_info))
 
         # 3. VS Code Context (rich code context for accurate edits)
         vscode_parts = []
@@ -288,17 +306,23 @@ Return a valid JSON object only — no markdown fences:
         if not isinstance(data, dict):
             raise ValueError("Root response must be a JSON object.")
 
-        reply = data.get("reply", "")
+        reply = str(data.get("reply") or "")
         intent = data.get("intent", None)
-        raw_actions = data.get("actions", [])
+        raw_actions = data.get("actions")
+        if raw_actions is None:
+            raw_actions = []
 
         if not isinstance(raw_actions, list):
-            raise ValueError("'actions' field must be an array.")
+            raise ValueError("'actions' field must be an array or null.")
 
         validated_actions: List[AgentAction] = []
         for i, a in enumerate(raw_actions):
             if not isinstance(a, dict):
                 raise ValueError(f"Action at index {i} must be a dictionary.")
+
+            # Sanitize LLM string representations for optional numeric or null fields
+            if "line_number" in a and (a["line_number"] == "" or a["line_number"] == "none" or a["line_number"] == "null"):
+                a["line_number"] = None
 
             act_type = str(a.get("type", "")).lower().strip()
             if not settings.allow_unknown_actions and act_type not in cls.VALID_ACTION_TYPES:

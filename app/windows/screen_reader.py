@@ -48,7 +48,31 @@ class ScreenReader:
     @staticmethod
     def capture_raw() -> Image.Image:
         """Full-screen capture in full colour (RGB)."""
-        return ImageGrab.grab(all_screens=False)   # primary monitor only
+        try:
+            return ImageGrab.grab(all_screens=False)   # primary monitor only
+        except Exception as e:
+            import sys
+            if sys.platform == "darwin":
+                import tempfile
+                import subprocess
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tf:
+                    tmp_path = tf.name
+                try:
+                    proc = subprocess.run(
+                        ["/usr/sbin/screencapture", "-x", tmp_path],
+                        capture_output=True,
+                        timeout=5.0,
+                    )
+                    if proc.returncode == 0 and os.path.exists(tmp_path):
+                        with Image.open(tmp_path) as img:
+                            return img.convert("RGB")
+                finally:
+                    if os.path.exists(tmp_path):
+                        try:
+                            os.remove(tmp_path)
+                        except OSError:
+                            pass
+            raise e
 
     # ── 2. Binary thresholding ────────────────────────────────────────────────
 
@@ -302,13 +326,18 @@ class ScreenReader:
 
         Returns (saved_path, spoken_confirmation).
         """
-        from app.filesystem.paths import WindowsPathResolver
+        try:
+            from app.platform_layer.factory import platform_adapter
+            standard = platform_adapter.get_standard_folders()
+        except Exception:
+            from app.filesystem.paths import WindowsPathResolver
+            standard = WindowsPathResolver.get_standard_folders()
 
-        standard = WindowsPathResolver.get_standard_folders()
-        screenshots_dir = standard["Pictures"] / "Screenshots"
+        pictures = standard.get("Pictures", standard.get("Desktop", Path.home()))
+        screenshots_dir = pictures / "Screenshots"
         screenshots_dir.mkdir(parents=True, exist_ok=True)
         if not screenshots_dir.is_dir():
-            screenshots_dir = standard["Desktop"]
+            screenshots_dir = standard.get("Desktop", Path.home())
 
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         ext = "png"

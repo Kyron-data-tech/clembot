@@ -58,7 +58,15 @@ class GeminiProvider(AIProvider):
                 )
             )
 
-            raw_text = response.text.strip() if response.text else "{}"
+            raw_text = ""
+            try:
+                raw_text = response.text.strip() if response.text else "{}"
+            except Exception:
+                if hasattr(response, "candidates") and response.candidates:
+                    parts = getattr(response.candidates[0].content, "parts", [])
+                    raw_text = "".join(getattr(p, "text", "") for p in parts).strip()
+            if not raw_text:
+                raw_text = "{}"
 
             try:
                 return prompt_builder.parse_and_validate(raw_text)
@@ -76,7 +84,15 @@ class GeminiProvider(AIProvider):
                         temperature=0.1
                     )
                 )
-                retry_text = retry_response.text.strip() if retry_response.text else "{}"
+                retry_text = ""
+                try:
+                    retry_text = retry_response.text.strip() if retry_response.text else "{}"
+                except Exception:
+                    if hasattr(retry_response, "candidates") and retry_response.candidates:
+                        parts = getattr(retry_response.candidates[0].content, "parts", [])
+                        retry_text = "".join(getattr(p, "text", "") for p in parts).strip()
+                if not retry_text:
+                    retry_text = "{}"
                 return prompt_builder.parse_and_validate(retry_text)
 
         except Exception as e:

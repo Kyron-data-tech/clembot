@@ -158,6 +158,25 @@ class MacOSSystemControls:
 
     # ── Keyboard & Input ───────────────────────────────────────────────────────
 
+    KEY_CODES = {
+        "return": 36,
+        "enter": 36,
+        "tab": 48,
+        "space": 49,
+        "delete": 51,
+        "backspace": 51,
+        "escape": 53,
+        "esc": 53,
+        "left": 123,
+        "right": 124,
+        "down": 125,
+        "up": 126,
+        "pageup": 116,
+        "pagedown": 121,
+        "home": 115,
+        "end": 119,
+    }
+
     @classmethod
     def send_hotkey(cls, *keys: str) -> None:
         """Maps keys (e.g. 'ctrl' -> 'command') and triggers hotkey."""
@@ -187,13 +206,22 @@ class MacOSSystemControls:
 
         if key_char:
             using_clause = f" using {{{', '.join(mods)}}}" if mods else ""
-            run_applescript(f'tell application "System Events" to keystroke "{key_char}"{using_clause}')
+            if key_char in cls.KEY_CODES:
+                run_applescript(f'tell application "System Events" to key code {cls.KEY_CODES[key_char]}{using_clause}')
+            else:
+                run_applescript(f'tell application "System Events" to keystroke "{key_char}"{using_clause}')
 
     @classmethod
     def type_text(cls, text: str, interval: float = 0.01) -> None:
-        """Safely types text via clipboard copy + Command+V paste."""
+        """Safely types text via clipboard copy + Command+V paste or direct keystroke."""
         if not text:
             return
+        # For short alphanumeric strings (e.g. line numbers), keystroke is direct and doesn't pollute clipboard
+        if re.match(r'^[a-zA-Z0-9_\-.:/ ]+$', text) and len(text) <= 50:
+            safe = text.replace('"', '\\"')
+            run_applescript(f'tell application "System Events" to keystroke "{safe}"')
+            return
+
         cls.copy_text(text)
         cls.send_hotkey("command", "v")
 
@@ -206,4 +234,9 @@ class MacOSSystemControls:
                 return
             except Exception:
                 pass
-        run_applescript(f'tell application "System Events" to keystroke "{key}"')
+        k_low = key.lower().strip()
+        if k_low in cls.KEY_CODES:
+            run_applescript(f'tell application "System Events" to key code {cls.KEY_CODES[k_low]}')
+        else:
+            run_applescript(f'tell application "System Events" to keystroke "{key}"')
+

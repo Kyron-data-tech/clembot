@@ -13,12 +13,12 @@
 -r base.txt
 
 # ── Windows Native APIs & Subsystems ─────────────────────────────────────────
-pywin32>=312              # Win32 APIs: window management, registry, processes
-pystray>=0.19.5           # Windows System Tray icon
-pycaw>=20240000           # Windows Core Audio API (master volume control)
-uiautomation>=2.0.0       # Windows UI Automation (Chromium browser tab queries)
-comtypes>=1.4.0           # COM interface for Explorer window queries
-pyttsx3>=2.90             # Offline Windows SAPI 5 speech engine
+pywin32>=312; sys_platform == 'win32'              # Win32 APIs: window management, registry, processes
+pystray>=0.19.5; sys_platform == 'win32'           # Windows System Tray icon
+pycaw>=20240000; sys_platform == 'win32'           # Windows Core Audio API (master volume control)
+uiautomation>=2.0.0; sys_platform == 'win32'       # Windows UI Automation (Chromium browser tab queries)
+comtypes>=1.4.0; sys_platform == 'win32'           # COM interface for Explorer window queries
+pyttsx3>=2.90; sys_platform == 'win32'             # Offline Windows SAPI 5 speech engine
 
 # ── Packaging (Optional — for building .exe) ──────────────────────────────────
 pyinstaller>=6.0.0

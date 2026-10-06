@@ -4,9 +4,13 @@ app/platform_layer/macos/browser.py
 Native macOS browser controller for Google Chrome and Brave Browser via AppleScript.
 Communicates directly with Chromium's AppleScript suite for ultra-fast, zero-dependency
 tab listing, counting, and switching.
+
+Supports both ActionRouter method names (open_new_tab, switch_to_tab_number, close_tab, etc.)
+and PlatformAdapter interface method names (new_browser_tab, switch_browser_tab, etc.).
 """
 
 import subprocess
+import time
 import urllib.parse
 import webbrowser
 from typing import Any, Dict, List, Optional, Tuple
@@ -60,6 +64,32 @@ class MacOSBrowserController:
         "linkedin": "https://www.linkedin.com",
     }
 
+    # ── Internal resolution ───────────────────────────────────────────────────
+
+    def _resolve_app_name(self, preferred_browser: Optional[str] = None) -> Optional[str]:
+        """Resolves the active or preferred browser app name."""
+        if preferred_browser:
+            clean = preferred_browser.strip().lower()
+            if clean in self.SUPPORTED_BROWSERS:
+                return self.SUPPORTED_BROWSERS[clean]
+
+        # Auto-detect running browser: check Chrome, then Brave
+        for key in ["Google Chrome", "Brave Browser"]:
+            res, out = run_applescript(f'application "{key}" is running')
+            if res and out.strip() == "true":
+                # Check if it has an open window
+                w_res, w_out = run_applescript(f'tell application "{key}" to return (count of windows) > 0')
+                if w_res and w_out.strip() == "true":
+                    return key
+
+        return None
+
+    def _activate_browser(self, app_name: str) -> None:
+        """Activates browser and brings its window to foreground."""
+        run_applescript(f'tell application "{app_name}" to activate')
+
+    # ── URLs, Search & Destinations ──────────────────────────────────────────
+
     def open_url(self, raw_url: str, browser: Optional[str] = None) -> str:
         url = raw_url.strip()
         if not url.startswith(("http://", "https://")):
@@ -89,29 +119,16 @@ class MacOSBrowserController:
             return f"Opening {name}."
         return None
 
-    def _resolve_app_name(self, preferred_browser: Optional[str] = None) -> Optional[str]:
-        """Resolves the active or preferred browser app name."""
-        if preferred_browser:
-            clean = preferred_browser.strip().lower()
-            if clean in self.SUPPORTED_BROWSERS:
-                return self.SUPPORTED_BROWSERS[clean]
-
-        # Check if Chrome or Brave is running
-        for key in ["Google Chrome", "Brave Browser"]:
-            res, out = run_applescript(f'application "{key}" is running')
-            if res and out.strip() == "true":
-                # Check if it has a front window
-                w_res, w_out = run_applescript(f'tell application "{key}" to return (count of windows) > 0')
-                if w_res and w_out.strip() == "true":
-                    return key
-
-        return None
+    def open_destination(self, name: str, browser: Optional[str] = None) -> Optional[str]:
+        return self.open_web_destination(name, browser)
 
     def get_displayed_browser(self, preferred_browser: Optional[str] = None) -> Optional[Dict[str, Any]]:
         app_name = self._resolve_app_name(preferred_browser)
         if not app_name:
             return None
         return {"name": "chrome" if "Chrome" in app_name else "brave", "app_name": app_name}
+
+    # ── Tab enumeration ───────────────────────────────────────────────────────
 
     def count_and_list_browser_tabs(self, browser_info: Optional[Dict[str, Any]] = None) -> Tuple[int, List[str]]:
         """Returns tab count and titles using AppleScript."""
@@ -135,6 +152,13 @@ class MacOSBrowserController:
 
         titles = [t.strip() for t in out.split("|||") if t.strip()]
         return len(titles), titles
+
+    def count_tabs(self, hwnd_or_info: Any = None) -> Tuple[int, List[str]]:
+        """Cross-platform compatibility alias for count_and_list_browser_tabs."""
+        info = hwnd_or_info if isinstance(hwnd_or_info, dict) else None
+        return self.count_and_list_browser_tabs(info)
+
+    # ── Tab switching ─────────────────────────────────────────────────────────
 
     def switch_browser_tab(self, tab_num: int, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
         app_name = self._resolve_app_name(preferred_browser)
@@ -162,6 +186,25 @@ class MacOSBrowserController:
             return True, f"Opened tab {tab_num}: {tab_title} in {app_name}."
         return True, f"Opened tab {tab_num} in {app_name}."
 
+    def switch_to_tab_number(self, tab_number: int, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
+        """Router-compatible method name."""
+        return self.switch_browser_tab(tab_number, preferred_browser)
+
+    def switch_tab_by_title(self, title_fragment: str, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
+        """Switches to the first tab matching title_fragment."""
+        app_name = self._resolve_app_name(preferred_browser)
+        if not app_name:
+            return False, "Chrome or Brave is not currently running."
+
+        count, titles = self.count_and_list_browser_tabs({"app_name": app_name})
+        frag = title_fragment.lower().strip()
+        for idx, t in enumerate(titles, start=1):
+            if frag in t.lower():
+                return self.switch_browser_tab(idx, preferred_browser)
+        return False, f"No tab matching '{title_fragment}' found in {app_name}."
+
+    # ── Tab operations ────────────────────────────────────────────────────────
+
     def new_browser_tab(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
         app_name = self._resolve_app_name(preferred_browser)
         if not app_name:
@@ -182,6 +225,10 @@ class MacOSBrowserController:
             return False, f"Could not open new tab: {err}"
         return True, f"Opened a new tab in {app_name}."
 
+    def open_new_tab(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
+        """Router-compatible method name."""
+        return self.new_browser_tab(preferred_browser)
+
     def close_browser_tab(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
         app_name = self._resolve_app_name(preferred_browser)
         if not app_name:
@@ -199,6 +246,10 @@ class MacOSBrowserController:
         if not success:
             return False, f"Could not close tab: {err}"
         return True, f"Closed tab in {app_name}."
+
+    def close_tab(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
+        """Router-compatible method name."""
+        return self.close_browser_tab(preferred_browser)
 
     def next_browser_tab(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
         app_name = self._resolve_app_name(preferred_browser)
@@ -224,6 +275,10 @@ class MacOSBrowserController:
             return False, f"Could not switch to next tab: {err}"
         return True, f"Switched to next tab in {app_name}."
 
+    def next_tab(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
+        """Router-compatible method name."""
+        return self.next_browser_tab(preferred_browser)
+
     def prev_browser_tab(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
         app_name = self._resolve_app_name(preferred_browser)
         if not app_name:
@@ -248,6 +303,10 @@ class MacOSBrowserController:
             return False, f"Could not switch to previous tab: {err}"
         return True, f"Switched to previous tab in {app_name}."
 
+    def previous_tab(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
+        """Router-compatible method name."""
+        return self.prev_browser_tab(preferred_browser)
+
     def reopen_browser_tab(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
         app_name = self._resolve_app_name(preferred_browser)
         if not app_name:
@@ -264,6 +323,10 @@ class MacOSBrowserController:
         if not success:
             return False, f"Could not reopen closed tab: {err}"
         return True, f"Reopened closed tab in {app_name}."
+
+    def reopen_tab(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
+        """Router-compatible method name."""
+        return self.reopen_browser_tab(preferred_browser)
 
     def reload_browser(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
         app_name = self._resolve_app_name(preferred_browser)
@@ -283,6 +346,10 @@ class MacOSBrowserController:
             return False, f"Could not reload tab: {err}"
         return True, f"Reloaded page in {app_name}."
 
+    def reload(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
+        """Router-compatible method name."""
+        return self.reload_browser(preferred_browser)
+
     def show_browser_history(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
         app_name = self._resolve_app_name(preferred_browser)
         if not app_name:
@@ -299,6 +366,10 @@ class MacOSBrowserController:
         if not success:
             return False, f"Could not open history: {err}"
         return True, f"Opened search history in {app_name}."
+
+    def show_history(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
+        """Router-compatible method name."""
+        return self.show_browser_history(preferred_browser)
 
     def show_browser_downloads(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
         app_name = self._resolve_app_name(preferred_browser)
@@ -317,6 +388,10 @@ class MacOSBrowserController:
             return False, f"Could not open downloads: {err}"
         return True, f"Opened downloads in {app_name}."
 
+    def show_downloads(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
+        """Router-compatible method name."""
+        return self.show_browser_downloads(preferred_browser)
+
     def bookmark_browser_page(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
         app_name = self._resolve_app_name(preferred_browser)
         if not app_name:
@@ -333,13 +408,17 @@ class MacOSBrowserController:
             return False, f"Could not bookmark page: {err}"
         return True, f"Bookmarked page in {app_name}."
 
+    def bookmark_page(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
+        """Router-compatible method name."""
+        return self.bookmark_browser_page(preferred_browser)
+
     def browser_zoom(self, action: str, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
         app_name = self._resolve_app_name(preferred_browser)
         if not app_name:
             return False, "Chrome or Brave is not currently running."
 
         act = action.lower().strip()
-        key = "=" if act == "in" else ("-" if act == "out" else "0")
+        key = "=" if act in ("in", "zoom_in") else ("-" if act in ("out", "zoom_out") else "0")
 
         script = f'''
         tell application "{app_name}" to activate
@@ -352,12 +431,20 @@ class MacOSBrowserController:
             return False, f"Could not zoom: {err}"
         return True, f"Zoom {act} applied."
 
+    def zoom_in(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
+        return self.browser_zoom("in", preferred_browser)
+
+    def zoom_out(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
+        return self.browser_zoom("out", preferred_browser)
+
+    def zoom_reset(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
+        return self.browser_zoom("reset", preferred_browser)
+
     def browser_incognito(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
         app_name = self._resolve_app_name(preferred_browser)
         if not app_name:
             return False, "Chrome or Brave is not currently running."
 
-        # Chromium AppleScript supports make new window with properties {mode:"incognito"}
         script = f'''
         tell application "{app_name}"
             activate
@@ -378,3 +465,7 @@ class MacOSBrowserController:
         if not success:
             return False, f"Could not open incognito window: {err}"
         return True, f"Opened new incognito window in {app_name}."
+
+    def new_incognito_window(self, preferred_browser: Optional[str] = None) -> Tuple[bool, str]:
+        """Router-compatible method name."""
+        return self.browser_incognito(preferred_browser)

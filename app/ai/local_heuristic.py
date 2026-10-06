@@ -143,8 +143,8 @@ class LocalHeuristicPlanner(AIProvider):
             display_name = clean_tgt
             target_path = clean_tgt
             try:
-                from app.filesystem.paths import WindowsPathResolver
-                resolved = WindowsPathResolver.resolve_spoken_path(clean_tgt)
+                from app.platform_layer.factory import platform_adapter
+                resolved = platform_adapter.resolve_spoken_path(clean_tgt)
                 if resolved and resolved.exists():
                     display_name = resolved.name
                 elif "\\" in clean_tgt or "/" in clean_tgt:
@@ -168,8 +168,8 @@ class LocalHeuristicPlanner(AIProvider):
             display_name = clean_f
             target_path = clean_f
             try:
-                from app.filesystem.paths import WindowsPathResolver
-                resolved = WindowsPathResolver.resolve_spoken_path(clean_f)
+                from app.platform_layer.factory import platform_adapter
+                resolved = platform_adapter.resolve_spoken_path(clean_f)
                 if resolved and resolved.exists():
                     display_name = resolved.name
                 elif "\\" in clean_f or "/" in clean_f:

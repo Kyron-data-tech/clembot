@@ -1,14 +1,27 @@
 # =============================================================================
-# Clembot — Requirements
+# Clembot — Unified Requirements (Windows 10/11 & macOS Apple Silicon arm64)
 #
-# Platform-specific requirement files are in requirements/:
+# Quick start:
+#   pip install -r requirements.txt
 #
+# Dedicated platform installations:
 #   Windows 10/11:                      pip install -r requirements/windows.txt
 #   macOS (Apple Silicon M3/M4 arm64):  pip install -r requirements/macos.txt
 #   Shared cross-platform base only:    pip install -r requirements/base.txt
-#
-# This file defaults to Windows for backward compatibility.
-# On macOS run:  pip install -r requirements/macos.txt
 # =============================================================================
 
--r requirements/windows.txt
+-r requirements/base.txt
+
+# ── Windows 10/11 Specific Packages (automatically skipped on macOS) ──────────
+pywin32>=312; sys_platform == 'win32'
+pystray>=0.19.5; sys_platform == 'win32'
+pycaw>=20240000; sys_platform == 'win32'
+uiautomation>=2.0.0; sys_platform == 'win32'
+comtypes>=1.4.0; sys_platform == 'win32'
+pyttsx3>=2.90; sys_platform == 'win32'
+
+# ── macOS Specific Packages (automatically skipped on Windows) ─────────────────
+pyobjc-core>=10.0; sys_platform == 'darwin'
+pyobjc-framework-ApplicationServices>=10.0; sys_platform == 'darwin'
+pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'
+pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'

@@ -6,7 +6,6 @@ from app.commands.friendly_errors import friendly_errors
 from app.core.models import ActionResult, AgentAction
 from app.editor.code_intelligence import CodeIntelligenceEngine
 from app.editor.vscode_adapter import VSCodeAdapter
-from app.filesystem.paths import WindowsPathResolver
 from app.filesystem.search import FileSearchService
 from app.filesystem.service import FileSystemService
 from app.logging.logger import logger
@@ -55,6 +54,58 @@ class ActionRouter:
         self.input_adapter = _RouterInputAdapter()
         self.vscode = VSCodeAdapter()
         self.code_engine = CodeIntelligenceEngine()
+
+    def _resolve_target_path(self, target: str, context_base: Optional[Path] = None) -> Optional[Path]:
+        """Resolves target file/folder cross-platform via platform adapter and fallback paths."""
+        if not target:
+            return None
+        # 1. Platform adapter spoken/alias resolution
+        try:
+            resolved = self.platform.resolve_spoken_path(target, context_base=context_base)
+            if resolved and resolved.exists():
+                return resolved
+        except Exception:
+            pass
+
+        # 2. WindowsPathResolver (for Windows and unit-test mock compatibility)
+        try:
+            from app.filesystem.paths import WindowsPathResolver
+            res = WindowsPathResolver.resolve(target, context_base=context_base)
+            if res:
+                return res
+        except Exception:
+            pass
+
+        # 3. Direct path
+        p = Path(target)
+        if p.exists() or p.is_file() or p.is_dir():
+            return p
+
+        # 4. Context base
+        if context_base and (context_base / target).exists():
+            return context_base / target
+
+        # 5. Standard folders
+        try:
+            std = self.platform.get_standard_folders()
+            for root in std.values():
+                cand = root / target
+                if cand.exists():
+                    return cand
+        except Exception:
+            pass
+
+        # 6. Fallback to fs resolve
+        try:
+            cand = self.fs.resolve(target, base_context=context_base)
+            if cand:
+                return cand
+        except Exception:
+            pass
+
+        return Path(target)
+
+
 
     def execute(self, action: AgentAction, context_base: Optional[Path] = None) -> ActionResult:
         act_type = action.type.lower()
@@ -136,7 +187,7 @@ class ActionRouter:
                 has_extension = bool(re.search(r'\.[a-zA-Z0-9]{1,6}$', clean_target))
                 if has_extension:
                     try:
-                        resolved_p = WindowsPathResolver.resolve(clean_target, context_base=context_base)
+                        resolved_p = self._resolve_target_path(clean_target, context_base=context_base)
                         if resolved_p and resolved_p.exists():
                             if resolved_p.suffix.lower() in code_exts and (self.vscode.get_active_file() or self.vscode.get_workspace() or self.apps.is_running("vscode")):
                                 self.vscode.open_file(resolved_p)
@@ -163,7 +214,7 @@ class ActionRouter:
 
                 # 3. No extension — could be a file without extension or an app name; try filesystem then app
                 try:
-                    resolved_p = WindowsPathResolver.resolve(clean_target, context_base=context_base)
+                    resolved_p = self._resolve_target_path(clean_target, context_base=context_base)
                     if resolved_p and resolved_p.exists() and resolved_p.is_file():
                         if resolved_p.suffix.lower() in code_exts and (self.vscode.get_active_file() or self.vscode.get_workspace() or self.apps.is_running("vscode")):
                             self.vscode.open_file(resolved_p)
@@ -172,6 +223,7 @@ class ActionRouter:
                         msg = self.fs.open_file(resolved_p)
                         return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg)
                     raise FileNotFoundError()
+
                 except FileNotFoundError:
                     try:
                         msg = self.apps.open_or_activate(target_str)
@@ -259,8 +311,9 @@ class ActionRouter:
 
                 # 3. Check if target is an existing folder or drive
                 try:
-                    resolved_path = WindowsPathResolver.resolve(target, context_base=context_base)
+                    resolved_path = self._resolve_target_path(target, context_base=context_base)
                     if resolved_path and resolved_path.exists():
+
                         code_exts = {".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".css", ".json", ".txt", ".md"}
                         if resolved_path.is_file() and resolved_path.suffix.lower() in code_exts and (self.vscode.get_active_file() or self.vscode.get_workspace() or self.apps.is_running("vscode")):
                             self.vscode.open_file(resolved_path)
@@ -498,25 +551,20 @@ class ActionRouter:
                 except Exception:
                     pass
 
-                # 0b. Spoken path check
+                # 0b. Path resolver / spoken path check
                 if not target_p:
-                    spoken = WindowsPathResolver.resolve_spoken_path(clean_target, context_base=context_base)
-                    if spoken and spoken.exists():
-                        target_p = spoken
+                    target_p = self._resolve_target_path(clean_target, context_base=context_base)
 
                 # 1. Check workspace first
                 if not target_p:
                     target_p = self.vscode.find_in_workspace(clean_target)
 
-                # 2. Path resolver fallback
-                if not target_p or not target_p.exists():
-                    target_p = WindowsPathResolver.resolve(clean_target, context_base=context_base)
-
-                # 3. Search fallback
+                # 2. Search fallback
                 if not target_p or not target_p.exists():
                     found = self.search.find_first(clean_target)
                     if found and found.exists():
                         target_p = found
+
 
                 if target_p and target_p.exists():
                     success = self.vscode.open_file(target_p)
@@ -558,13 +606,14 @@ class ActionRouter:
             elif act_type == "vscode_read_line":
                 line_num = action.line_number or 1
                 if action.path:
-                    p = WindowsPathResolver.resolve(action.path)
+                    p = self._resolve_target_path(action.path)
                     if p and p.is_file():
                         self.vscode.open_file(p, line_number=line_num)
                     else:
                         self.vscode.jump_to_line(line_num)
                 else:
                     self.vscode.jump_to_line(line_num)
+
 
                 content = self.vscode.read_document()
                 if content:
@@ -765,9 +814,10 @@ class ActionRouter:
 
                 target_file: Optional[Path] = None
                 if action.path:
-                    target_file = WindowsPathResolver.resolve(action.path)
+                    target_file = self._resolve_target_path(action.path)
                 else:
                     target_file = self.vscode.get_active_file()
+
                     if not target_file or not target_file.is_file():
                         target_file = context_base if context_base and context_base.is_file() else None
 

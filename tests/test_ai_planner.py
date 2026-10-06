@@ -94,6 +94,53 @@ class TestAIPlanner(unittest.TestCase):
             self.assertEqual(plan.actions[0].app, "notepad")
             self.assertEqual(mock_client.models.generate_content.call_count, 2)
 
+    def test_parse_null_actions(self):
+        json_null_actions = '{"reply": "I am fine, thank you!", "intent": "conversation", "actions": null}'
+        plan = self.builder.parse_and_validate(json_null_actions)
+        self.assertEqual(plan.reply, "I am fine, thank you!")
+        self.assertEqual(plan.intent, "conversation")
+        self.assertEqual(plan.actions, [])
+
+    def test_parse_missing_actions(self):
+        json_no_actions = '{"reply": "Here is an explanation of recursion.", "intent": "conversation"}'
+        plan = self.builder.parse_and_validate(json_no_actions)
+        self.assertEqual(plan.reply, "Here is an explanation of recursion.")
+        self.assertEqual(plan.actions, [])
+
+    def test_parse_line_number_sanitization(self):
+        json_str_line = '{"reply": "Reading line", "actions": [{"type": "vscode_read_line", "line_number": ""}]}'
+        plan = self.builder.parse_and_validate(json_str_line)
+        self.assertEqual(len(plan.actions), 1)
+        self.assertIsNone(plan.actions[0].line_number)
+
+    def test_dynamic_system_instruction_mac_vs_win(self):
+        with patch("app.platform_layer.factory.platform_adapter.get_platform_name", return_value="macOS (Apple Silicon arm64)"):
+            instruction = self.builder.build_system_instruction()
+            self.assertIn("macOS", instruction)
+            self.assertIn("Control macOS", instruction)
+
+        with patch("app.platform_layer.factory.platform_adapter.get_platform_name", return_value="Windows 10/11"):
+            instruction_win = self.builder.build_system_instruction()
+            self.assertIn("Windows 10/11", instruction_win)
+
+    def test_gemini_candidate_parts_fallback(self):
+        ctx = ScreenContext()
+        mock_resp = MagicMock()
+        # Simulate response.text raising an exception (e.g. safety warning in SDK)
+        type(mock_resp).text = unittest.mock.PropertyMock(side_effect=ValueError("Response blocked or no text"))
+        mock_part = MagicMock()
+        mock_part.text = '{"reply": "Recovered from candidate parts", "actions": []}'
+        mock_resp.candidates = [MagicMock(content=MagicMock(parts=[mock_part]))]
+
+        mock_client = MagicMock()
+        mock_client.models.generate_content.return_value = mock_resp
+
+        with patch("google.genai.Client", return_value=mock_client), \
+             patch.object(settings, "gemini_api_key", "test-api-key"):
+            plan = self.gemini.plan("hello", ctx)
+            self.assertEqual(plan.reply, "Recovered from candidate parts")
+            self.assertEqual(plan.actions, [])
+
 
 if __name__ == "__main__":
     unittest.main()

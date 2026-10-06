@@ -68,6 +68,7 @@ MANIFEST
 
 # PyInstaller
 *.spec
+!packaging/**/*.spec
 *.exe
 *.dmg
 *.app/

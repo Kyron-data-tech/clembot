@@ -47,13 +47,31 @@ class MacOSWindowManager:
         self.last_user_app = info["app"]
         self.last_user_title = info["title"]
 
+    APP_NAME_MAP = {
+        "code": "Visual Studio Code",
+        "vscode": "Visual Studio Code",
+        "vs code": "Visual Studio Code",
+        "chrome": "Google Chrome",
+        "google chrome": "Google Chrome",
+        "brave": "Brave Browser",
+        "brave browser": "Brave Browser",
+        "terminal": "Terminal",
+        "iterm": "iTerm",
+        "iterm2": "iTerm2",
+        "finder": "Finder",
+        "calculator": "Calculator",
+        "safari": "Safari",
+    }
+
     def focus_window(self, target: Any) -> bool:
         """Activates an application by name."""
         app_name = str(target).strip()
         if not app_name:
             return False
-        success, _ = run_applescript(f'tell application "{app_name}" to activate')
+        resolved = self.APP_NAME_MAP.get(app_name.lower(), app_name)
+        success, _ = run_applescript(f'tell application "{resolved}" to activate')
         return success
+
 
     def minimize_current(self) -> str:
         """Minimizes the frontmost application window."""
@@ -121,11 +139,23 @@ class MacOSWindowManager:
     def snap_left(self) -> str:
         """Snaps the active window to the left half of the display."""
         script = '''
-        tell application "Finder"
-            set screenBounds to bounds of window of desktop
-            set screenW to item 3 of screenBounds
-            set screenH to item 4 of screenBounds
-        end tell
+        set screenW to 1440
+        set screenH to 900
+        try
+            tell application "Finder"
+                set screenBounds to bounds of window of desktop
+                set screenW to item 3 of screenBounds
+                set screenH to item 4 of screenBounds
+            end tell
+        on error
+            try
+                tell application "Finder"
+                    set screenBounds to bounds of desktop
+                    set screenW to item 3 of screenBounds
+                    set screenH to item 4 of screenBounds
+                end tell
+            end try
+        end try
         tell application "System Events"
             try
                 set frontApp to first application process whose frontmost is true
@@ -148,11 +178,23 @@ class MacOSWindowManager:
     def snap_right(self) -> str:
         """Snaps the active window to the right half of the display."""
         script = '''
-        tell application "Finder"
-            set screenBounds to bounds of window of desktop
-            set screenW to item 3 of screenBounds
-            set screenH to item 4 of screenBounds
-        end tell
+        set screenW to 1440
+        set screenH to 900
+        try
+            tell application "Finder"
+                set screenBounds to bounds of window of desktop
+                set screenW to item 3 of screenBounds
+                set screenH to item 4 of screenBounds
+            end tell
+        on error
+            try
+                tell application "Finder"
+                    set screenBounds to bounds of desktop
+                    set screenW to item 3 of screenBounds
+                    set screenH to item 4 of screenBounds
+                end tell
+            end try
+        end try
         tell application "System Events"
             try
                 set frontApp to first application process whose frontmost is true
@@ -175,11 +217,23 @@ class MacOSWindowManager:
     def center_window(self) -> str:
         """Centers the active window on screen."""
         script = '''
-        tell application "Finder"
-            set screenBounds to bounds of window of desktop
-            set screenW to item 3 of screenBounds
-            set screenH to item 4 of screenBounds
-        end tell
+        set screenW to 1440
+        set screenH to 900
+        try
+            tell application "Finder"
+                set screenBounds to bounds of window of desktop
+                set screenW to item 3 of screenBounds
+                set screenH to item 4 of screenBounds
+            end tell
+        on error
+            try
+                tell application "Finder"
+                    set screenBounds to bounds of desktop
+                    set screenW to item 3 of screenBounds
+                    set screenH to item 4 of screenBounds
+                end tell
+            end try
+        end try
         tell application "System Events"
             try
                 set frontApp to first application process whose frontmost is true
@@ -202,6 +256,7 @@ class MacOSWindowManager:
         if success and "OK" in out:
             return "Centered window."
         return "Could not center window."
+
 
     def show_desktop(self) -> str:
         """Shows desktop by activating Finder or triggering Show Desktop shortcut."""
