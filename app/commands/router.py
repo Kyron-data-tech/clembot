@@ -1,4 +1,5 @@
 import re
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -267,6 +268,62 @@ class ActionRouter:
                     return ActionResult(action_id=action.id, action_type=act_type, success=True, message=f"Found and opening '{found.name}'.")
                 return ActionResult(action_id=action.id, action_type=act_type, success=False, message=f"I couldn't find '{action.query}' in your files.")
 
+            elif act_type == "open_recent_files":
+                if sys.platform == "darwin":
+                    import subprocess
+                    subprocess.Popen(["open", "-a", "Finder"])
+                    import time
+                    time.sleep(0.2)
+                    self.platform.send_hotkey("command", "shift", "f")
+                else:
+                    self.platform.open_folder("shell:Recent")
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Opening recent files.")
+
+            elif act_type == "open_latest_download":
+                dl_dir = self.platform.get_standard_folders().get("Downloads")
+                if dl_dir and dl_dir.exists():
+                    files = [p for p in dl_dir.iterdir() if p.is_file()]
+                    if files:
+                        latest = max(files, key=lambda f: f.stat().st_mtime)
+                        self.fs.open_file(latest)
+                        return ActionResult(action_id=action.id, action_type=act_type, success=True, message=f"Opening {latest.name}.")
+                return ActionResult(action_id=action.id, action_type=act_type, success=False, message="No files found in Downloads.")
+
+            elif act_type == "reveal_in_file_manager":
+                p = self._resolve_target_path(action.path)
+                is_mac = sys.platform == "darwin"
+                if p and p.exists():
+                    import subprocess
+                    if is_mac:
+                        subprocess.Popen(["open", "-R", str(p)])
+                    else:
+                        subprocess.Popen(["explorer", f"/select,{str(p)}"])
+                    msg = "Showing it in Finder." if is_mac else "Showing it in File Explorer."
+                    return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg)
+                return ActionResult(action_id=action.id, action_type=act_type, success=False, message=f"File '{action.path}' not found.")
+
+            elif act_type == "quick_look":
+                p = self._resolve_target_path(action.path) if action.path else None
+                if p and p.exists():
+                    import subprocess
+                    subprocess.Popen(["qlmanage", "-p", str(p)])
+                    return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Previewing.")
+                else:
+                    self.platform.send_key("space")
+                    return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Previewing.")
+
+            elif act_type == "open_file_with_app":
+                p = self._resolve_target_path(action.path)
+                app_name = action.app or "notepad"
+                if p and p.exists():
+                    import subprocess
+                    if sys.platform == "darwin":
+                        subprocess.Popen(["open", "-a", app_name, str(p)])
+                    else:
+                        subprocess.Popen([app_name, str(p)], shell=True)
+                    return ActionResult(action_id=action.id, action_type=act_type, success=True, message=f"Opening {p.name} in {app_name.capitalize()}.")
+                return ActionResult(action_id=action.id, action_type=act_type, success=False, message=f"File '{action.path}' not found.")
+
             # 2. Application & Window Control
             elif act_type == "open_app":
                 raw_target = (action.app or "").strip()
@@ -385,6 +442,31 @@ class ActionRouter:
                 msg = self.windows.show_desktop()
                 return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg)
 
+            elif act_type == "switch_window":
+                self.platform.send_hotkey(*KeyMap.switch_window())
+                msg = "Switching app." if sys.platform == "darwin" else "Switching window."
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg)
+
+            elif act_type == "switch_same_app_window":
+                self.platform.send_hotkey(*KeyMap.switch_same_app_window())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Switching window.")
+
+            elif act_type == "task_view":
+                self.platform.send_hotkey(*KeyMap.task_view())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Showing all windows.")
+
+            elif act_type == "window_full_screen":
+                self.platform.send_hotkey(*KeyMap.full_screen())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Toggling full screen.")
+
+            elif act_type == "next_desktop":
+                self.platform.send_hotkey(*KeyMap.next_desktop())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Switching desktop.")
+
+            elif act_type == "prev_desktop":
+                self.platform.send_hotkey(*KeyMap.prev_desktop())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Switching desktop.")
+
             # 3. Browser & Web
             elif act_type == "web_search":
                 msg = self.browser.search_web(action.query, engine=action.scope)
@@ -442,9 +524,50 @@ class ActionRouter:
                 ok, msg = self.browser.reload(preferred_browser=action.app)
                 return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
 
-            elif act_type == "browser_bookmark":
+            elif act_type in ("browser_bookmark", "browser_bookmark_page"):
                 ok, msg = self.browser.bookmark_page(preferred_browser=action.app)
-                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message="Bookmarked." if ok else msg)
+
+            elif act_type == "browser_bookmarks_list":
+                self.platform.send_hotkey(*KeyMap.bookmarks_list())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Opening bookmarks.")
+
+            elif act_type == "browser_address_bar":
+                self.platform.send_hotkey(*KeyMap.address_bar())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Address bar ready.")
+
+            elif act_type == "browser_find_in_page":
+                self.platform.send_hotkey(*KeyMap.find_in_page())
+                if action.text:
+                    import time
+                    time.sleep(0.1)
+                    self.platform.type_text(action.text)
+                    self.platform.send_key("enter")
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Searching the page.")
+
+            elif act_type == "browser_clear_data":
+                self.platform.send_hotkey(*KeyMap.clear_browsing_data())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Opened. Please confirm.")
+
+            elif act_type == "browser_task_manager":
+                self.platform.send_hotkey(*KeyMap.browser_task_manager())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Opening Chrome's task manager.")
+
+            elif act_type == "browser_go_back":
+                self.platform.send_hotkey(*KeyMap.go_back())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Going back.")
+
+            elif act_type == "browser_go_forward":
+                self.platform.send_hotkey(*KeyMap.go_forward())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Going forward.")
+
+            elif act_type == "browser_last_tab":
+                self.platform.send_hotkey(*KeyMap.last_tab())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Last tab.")
+
+            elif act_type == "browser_new_window":
+                self.platform.send_hotkey(*KeyMap.new_window())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="New window.")
 
             elif act_type == "browser_zoom_in":
                 ok, msg = self.browser.zoom_in(preferred_browser=action.app)
@@ -458,7 +581,7 @@ class ActionRouter:
                 ok, msg = self.browser.zoom_reset(preferred_browser=action.app)
                 return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
 
-            elif act_type == "browser_incognito":
+            elif act_type in ("browser_incognito", "browser_open_incognito"):
                 ok, msg = self.browser.new_incognito_window(preferred_browser=action.app)
                 return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
 
@@ -467,15 +590,43 @@ class ActionRouter:
                 path, msg = self.platform.capture_screenshot()
                 return ActionResult(action_id=action.id, action_type=act_type, success=True, message=msg, data={"path": str(path)})
 
-            elif act_type == "screen_read":
-                # Capture screen → binary threshold → AI vision description
-                try:
-                    from app.windows.screen_reader import ScreenReader
-                    user_prompt = action.query or "What is displayed on this screen? Describe it briefly."
-                    description = ScreenReader.describe_with_ai(prompt=user_prompt)
-                except Exception as e:
-                    description = f"Screen reading unavailable: {e}"
-                return ActionResult(action_id=action.id, action_type=act_type, success=True, message=description)
+            elif act_type in ("screen_read", "screen_read_all"):
+                from app.vision.screen_interaction import screen_interaction
+                user_prompt = action.query or action.text or "Describe what is displayed across the whole screen."
+                summary, elements = screen_interaction.read_whole_screen(prompt=user_prompt)
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message=summary,
+                                    data={"elements_count": len(elements)})
+
+            elif act_type == "screen_click":
+                from app.vision.screen_interaction import screen_interaction
+                target = action.text or action.query or ""
+                click_type = getattr(action, "patch_action", "single") or "single"
+                ok, msg = screen_interaction.click_element(target, click_type=click_type)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
+
+            elif act_type == "screen_double_click":
+                from app.vision.screen_interaction import screen_interaction
+                target = action.text or action.query or ""
+                ok, msg = screen_interaction.click_element(target, click_type="double")
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
+
+            elif act_type == "screen_right_click":
+                from app.vision.screen_interaction import screen_interaction
+                target = action.text or action.query or ""
+                ok, msg = screen_interaction.click_element(target, click_type="right")
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
+
+            elif act_type == "screen_select":
+                from app.vision.screen_interaction import screen_interaction
+                target = action.text or action.query or ""
+                ok, msg = screen_interaction.select_element(target)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
+
+            elif act_type == "screen_open":
+                from app.vision.screen_interaction import screen_interaction
+                target = action.text or action.path or action.query or ""
+                ok, msg = screen_interaction.open_displayed_item(target)
+                return ActionResult(action_id=action.id, action_type=act_type, success=ok, message=msg)
 
             elif act_type == "volume_up":
                 msg = self.platform.volume_up()
@@ -523,10 +674,16 @@ class ActionRouter:
                 return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Undone.")
 
             elif act_type == "redo":
+                if self.vscode.is_available():
+                    self.vscode.redo()
+                    return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Redone.")
                 self.input_adapter.redo()
                 return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Redone.")
 
             elif act_type == "save":
+                if self.vscode.is_available():
+                    self.vscode.save()
+                    return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Saved.")
                 self.input_adapter.save()
                 return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Saved.")
 
@@ -574,6 +731,135 @@ class ActionRouter:
                 else:
                     return ActionResult(action_id=action.id, action_type=act_type, success=False,
                                         message=f"I couldn't find '{clean_target}' in your VS Code workspace or files.")
+
+            elif act_type == "vscode_open_folder":
+                folder_p = self._resolve_target_path(action.path or ".") or Path(".")
+                import subprocess
+                try:
+                    subprocess.Popen(["code", str(folder_p)], shell=(sys.platform == "win32"))
+                except Exception:
+                    self.platform.open_app("code")
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Opening the folder in VS Code.")
+
+            elif act_type == "vscode_open_file_at_line":
+                p = self._resolve_target_path(action.path)
+                ln = action.line_number or 1
+                if p and p.exists():
+                    self.vscode.open_file(p, line_number=ln)
+                    return ActionResult(action_id=action.id, action_type=act_type, success=True, message=f"Opening {p.name} at line {ln}.")
+                else:
+                    import subprocess
+                    try:
+                        subprocess.Popen(["code", "-g", f"{action.path}:{ln}"], shell=(sys.platform == "win32"))
+                        return ActionResult(action_id=action.id, action_type=act_type, success=True, message=f"Opening {action.path} at line {ln}.")
+                    except Exception:
+                        return ActionResult(action_id=action.id, action_type=act_type, success=False, message=f"File '{action.path}' not found.")
+
+            elif act_type == "vscode_diff":
+                p_a = self._resolve_target_path(action.path) or action.path
+                p_b = self._resolve_target_path(action.destination) or action.destination
+                import subprocess
+                try:
+                    subprocess.Popen(["code", "-d", str(p_a), str(p_b)], shell=(sys.platform == "win32"))
+                    return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Opening a diff.")
+                except Exception as err:
+                    return ActionResult(action_id=action.id, action_type=act_type, success=False, message=f"Could not open diff: {err}")
+
+            elif act_type == "vscode_open_current_window":
+                p = self._resolve_target_path(action.path) if action.path else None
+                import subprocess
+                args = ["code", "-r"] + ([str(p)] if p else [])
+                subprocess.Popen(args, shell=(sys.platform == "win32"))
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Opened.")
+
+            elif act_type == "vscode_open_new_window":
+                p = self._resolve_target_path(action.path) if action.path else None
+                import subprocess
+                args = ["code", "-n"] + ([str(p)] if p else [])
+                subprocess.Popen(args, shell=(sys.platform == "win32"))
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="New window.")
+
+            elif act_type == "vscode_quick_open":
+                self.platform.send_hotkey(*KeyMap.vscode_quick_open())
+                if action.path:
+                    import time
+                    time.sleep(0.1)
+                    self.platform.type_text(action.path)
+                    self.platform.send_key("enter")
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message=f"Opening {action.path or 'file'}.")
+
+            elif act_type == "vscode_command_palette":
+                self.platform.send_hotkey(*KeyMap.vscode_command_palette())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Command palette.")
+
+            elif act_type == "vscode_terminal":
+                self.platform.send_hotkey(*KeyMap.vscode_terminal())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Terminal open.")
+
+            elif act_type == "vscode_toggle_sidebar":
+                self.platform.send_hotkey(*KeyMap.vscode_toggle_sidebar())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Sidebar toggled.")
+
+            elif act_type == "vscode_settings":
+                self.platform.send_hotkey(*KeyMap.vscode_settings())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Opening settings.")
+
+            elif act_type == "vscode_goto_symbol":
+                self.platform.send_hotkey(*KeyMap.vscode_goto_symbol())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Go to symbol.")
+
+
+            elif act_type == "vscode_goto_definition":
+                ok = self.vscode.go_to_definition()
+                if not ok:
+                    self.platform.send_hotkey(*KeyMap.vscode_goto_definition())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Going to definition.")
+
+            elif act_type == "vscode_format":
+                ok = self.vscode.format_document()
+                if not ok:
+                    self.platform.send_hotkey(*KeyMap.vscode_format())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Formatted.")
+
+            elif act_type == "vscode_save_all":
+                if sys.platform == "darwin":
+                    self.platform.send_hotkey("command", "option", "s")
+                else:
+                    self.platform.send_hotkey("ctrl", "k")
+                    self.platform.send_key("s")
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Saved.")
+
+            elif act_type == "vscode_search_project":
+                self.platform.send_hotkey(*KeyMap.vscode_search_project())
+                if action.text:
+                    import time
+                    time.sleep(0.1)
+                    self.platform.type_text(action.text)
+                    self.platform.send_key("enter")
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Searching the project.")
+
+            elif act_type == "vscode_find_todo":
+                self.platform.send_hotkey(*KeyMap.find_in_page())
+                import time
+                time.sleep(0.1)
+                self.platform.type_text("TODO")
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Find open.")
+
+            elif act_type == "vscode_replace_all":
+                self.platform.send_hotkey(*KeyMap.vscode_replace_all())
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Find open.")
+
+            elif act_type == "undo_last_edit":
+                from app.editor.code_patch_engine import code_patch_engine
+                active_f = self.vscode.get_active_file()
+                ok, undo_msg = code_patch_engine.undo_last_patch(active_f)
+                if ok:
+                    reverted = getattr(code_patch_engine, 'last_reverted_path', None) or active_f
+                    if reverted:
+                        self.vscode.open_file(reverted)
+                    return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Restored the previous version.")
+                self.input_adapter.undo()
+                return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Undone.")
 
             elif act_type == "vscode_next_file":
                 success = self.vscode.next_file()
@@ -669,6 +955,8 @@ class ActionRouter:
                 # ------ C. DELETE_LINE:{line} ------
                 elif token.startswith("DELETE_LINE:") and not token.startswith("DELETE_LINES:"):
                     ln = int(token[len("DELETE_LINE:"):])
+                    if ln == 0:
+                        ln = self.vscode.get_cursor_line()
                     ok = self._file_delete_lines(active_file, ln, ln)
                     self.vscode.open_file(active_file)
                     return ActionResult(action_id=action.id, action_type=act_type, success=ok,
@@ -690,6 +978,8 @@ class ActionRouter:
                     parts = rest.split("::", 1)
                     if len(parts) == 2:
                         ln, new_text = int(parts[0]), parts[1]
+                        if ln == 0:
+                            ln = self.vscode.get_cursor_line()
                         ok = self._file_insert_line(active_file, ln, new_text, after=True)
                         self.vscode.open_file(active_file)
                         return ActionResult(action_id=action.id, action_type=act_type, success=ok,
@@ -701,6 +991,8 @@ class ActionRouter:
                     parts = rest.split("::", 1)
                     if len(parts) == 2:
                         ln, new_text = int(parts[0]), parts[1]
+                        if ln == 0:
+                            ln = self.vscode.get_cursor_line()
                         ok = self._file_insert_line(active_file, ln, new_text, after=False)
                         self.vscode.open_file(active_file)
                         return ActionResult(action_id=action.id, action_type=act_type, success=ok,
@@ -709,7 +1001,11 @@ class ActionRouter:
                 # ------ G. COMMENT_LINE:{line} ------
                 elif token.startswith("COMMENT_LINE:"):
                     ln = int(token[len("COMMENT_LINE:"):])
-                    ok = self._file_toggle_comment(active_file, ln, add_comment=True)
+                    if ln == 0:
+                        ln = self.vscode.get_cursor_line()
+                    ok = self.vscode.toggle_comment(ln)
+                    if not ok:
+                        ok = self._file_toggle_comment(active_file, ln, add_comment=True)
                     self.vscode.open_file(active_file)
                     return ActionResult(action_id=action.id, action_type=act_type, success=ok,
                                         message=f"Line {ln} commented out." if ok else "Could not comment line.")
@@ -717,10 +1013,14 @@ class ActionRouter:
                 # ------ H. UNCOMMENT_LINE:{line} ------
                 elif token.startswith("UNCOMMENT_LINE:"):
                     ln = int(token[len("UNCOMMENT_LINE:"):])
-                    ok = self._file_toggle_comment(active_file, ln, add_comment=False)
+                    if ln == 0:
+                        ln = self.vscode.get_cursor_line()
+                    ok = self.vscode.toggle_comment(ln)
+                    if not ok:
+                        ok = self._file_toggle_comment(active_file, ln, add_comment=False)
                     self.vscode.open_file(active_file)
                     return ActionResult(action_id=action.id, action_type=act_type, success=ok,
-                                        message=f"Line {ln} uncommented." if ok else "Could not uncomment line.")
+                                        message=f"Line {ln} uncommented." if ok else "Could not comment line.")
 
                 # ------ I. RENAME_FUNC:{old}:{new} ------
                 elif token.startswith("RENAME_FUNC:"):
@@ -738,7 +1038,9 @@ class ActionRouter:
                 # ------ J. ADD_TRY_EXCEPT:{line} ------
                 elif token.startswith("ADD_TRY_EXCEPT"):
                     parts = token.split(":")
-                    ln = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else (action.line_number or 1)
+                    ln = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else (action.line_number or 0)
+                    if ln == 0:
+                        ln = self.vscode.get_cursor_line()
                     proposal = self.code_engine.propose_exception_handling_at_line(active_file, ln)
                     if proposal:
                         self.code_engine.apply_proposal(proposal)
@@ -748,7 +1050,130 @@ class ActionRouter:
                     return ActionResult(action_id=action.id, action_type=act_type, success=False,
                                         message="Could not generate the error-handling block.")
 
-                # ------ K. Free-text instruction → targeted patch via code_patch_engine ------
+                # ------ K. APPEND_TO_LINE:{line}::{text} ------
+                elif token.startswith("APPEND_TO_LINE:"):
+                    rest = token[len("APPEND_TO_LINE:"):]
+                    parts = rest.split("::", 1)
+                    if len(parts) == 2:
+                        ln, append_text = int(parts[0]), parts[1]
+                        if ln == 0:
+                            ln = self.vscode.get_cursor_line()
+                        ok = self._file_append_to_line(active_file, ln, append_text)
+                        self.vscode.open_file(active_file)
+                        return ActionResult(action_id=action.id, action_type=act_type, success=ok,
+                                            message="Added." if ok else f"Could not append to line {ln}.")
+
+                # ------ L. DUPLICATE_LINE:{line} ------
+                elif token.startswith("DUPLICATE_LINE:"):
+                    ln = int(token[len("DUPLICATE_LINE:"):])
+                    if ln == 0:
+                        ln = self.vscode.get_cursor_line()
+                    ok = self.vscode.duplicate_line(ln)
+                    if not ok:
+                        ok = self._file_duplicate_line(active_file, ln)
+                    self.vscode.open_file(active_file)
+                    return ActionResult(action_id=action.id, action_type=act_type, success=ok,
+                                        message="Line duplicated." if ok else "Could not duplicate line.")
+
+                # ------ M. MOVE_LINE_UP:{line} / MOVE_LINE_DOWN:{line} ------
+                elif token.startswith("MOVE_LINE_UP:"):
+                    ln = int(token[len("MOVE_LINE_UP:"):])
+                    if ln == 0:
+                        ln = self.vscode.get_cursor_line()
+                    ok = self.vscode.move_line_up() if hasattr(self.vscode, "move_line_up") else False
+                    if not ok:
+                        ok = self._file_move_line(active_file, ln, up=True)
+                    self.vscode.open_file(active_file)
+                    return ActionResult(action_id=action.id, action_type=act_type, success=ok,
+                                        message="Line moved." if ok else "Could not move line.")
+
+                elif token.startswith("MOVE_LINE_DOWN:"):
+                    ln = int(token[len("MOVE_LINE_DOWN:"):])
+                    if ln == 0:
+                        ln = self.vscode.get_cursor_line()
+                    ok = self.vscode.move_line_down() if hasattr(self.vscode, "move_line_down") else False
+                    if not ok:
+                        ok = self._file_move_line(active_file, ln, up=False)
+                    self.vscode.open_file(active_file)
+                    return ActionResult(action_id=action.id, action_type=act_type, success=ok,
+                                        message="Line moved." if ok else "Could not move line.")
+
+                # ------ N. INDENT_LINE:{line} / OUTDENT_LINE:{line} ------
+                elif token.startswith("INDENT_LINE:"):
+                    ln = int(token[len("INDENT_LINE:"):])
+                    if ln == 0:
+                        ln = self.vscode.get_cursor_line()
+                    ok = self._file_indent_line(active_file, ln, indent=True)
+                    self.vscode.open_file(active_file)
+                    return ActionResult(action_id=action.id, action_type=act_type, success=ok,
+                                        message="Indented." if ok else "Could not indent line.")
+
+                elif token.startswith("OUTDENT_LINE:"):
+                    ln = int(token[len("OUTDENT_LINE:"):])
+                    if ln == 0:
+                        ln = self.vscode.get_cursor_line()
+                    ok = self._file_indent_line(active_file, ln, indent=False)
+                    self.vscode.open_file(active_file)
+                    return ActionResult(action_id=action.id, action_type=act_type, success=ok,
+                                        message="Outdented." if ok else "Could not outdent line.")
+
+                # ------ O. SELECT_LINE:{line} ------
+                elif token.startswith("SELECT_LINE:"):
+                    ln = int(token[len("SELECT_LINE:"):])
+                    if ln == 0:
+                        ln = self.vscode.get_cursor_line()
+                    ok = self.vscode.select_line(ln)
+                    if not ok:
+                        self.vscode.jump_to_line(ln)
+                        self.platform.send_hotkey(*KeyMap.vscode_select_line())
+                    return ActionResult(action_id=action.id, action_type=act_type, success=True,
+                                        message=f"Line {ln} selected.")
+
+                # ------ P. COPY_LINE:{line} ------
+                elif token.startswith("COPY_LINE:"):
+                    ln = int(token[len("COPY_LINE:"):])
+                    if ln == 0:
+                        ln = self.vscode.get_cursor_line()
+                    lines, _ = self._read_lines(active_file)
+                    idx = ln - 1
+                    if 0 <= idx < len(lines):
+                        self.platform.set_clipboard_text(lines[idx].rstrip("\r\n"))
+                    return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Copied.")
+
+                # ------ Q. RENAME_VAR:{old}:{new} ------
+                elif token.startswith("RENAME_VAR:"):
+                    parts = token.split(":")
+                    if len(parts) >= 3:
+                        old_v, new_v = parts[1], parts[2]
+                        lines, _ = self._read_lines(active_file)
+                        new_lines = [re.sub(r'\b' + re.escape(old_v) + r'\b', new_v, line) for line in lines]
+                        self._write_lines(active_file, new_lines)
+                        self.vscode.open_file(active_file)
+                        return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Renamed.")
+
+                # ------ R. FORMAT_FILE ------
+                elif token == "FORMAT_FILE":
+                    ok = self.vscode.format_document()
+                    if not ok:
+                        self.platform.send_hotkey(*KeyMap.vscode_format())
+                    return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Formatted.")
+
+                # ------ S. FIND_IN_FILE:{query} ------
+                elif token.startswith("FIND_IN_FILE:"):
+                    q = token[len("FIND_IN_FILE:"):]
+                    self.platform.send_hotkey(*KeyMap.find_in_page())
+                    if q:
+                        import time
+                        time.sleep(0.1)
+                        self.platform.type_text(q)
+                    return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Find open.")
+
+                # ------ T. REPLACE_ALL ------
+                elif token == "REPLACE_ALL":
+                    self.platform.send_hotkey(*KeyMap.vscode_replace_all())
+                    return ActionResult(action_id=action.id, action_type=act_type, success=True, message="Find open.")
+
+                # ------ U. Free-text instruction → targeted patch via code_patch_engine ------
                 elif token:
                     from app.editor.code_patch_engine import code_patch_engine, TargetedPatch
                     current_code = self.vscode.read_document(active_file)
@@ -1013,6 +1438,11 @@ class ActionRouter:
                 return f"I could not find '{old}' on line {line_no}. Line contains: {stripped.strip()!r}"
 
         replaced = stripped.replace(target_old, new, 1)
+        if self.vscode.is_available():
+            ok = self.vscode.apply_edit(path, line_no, line_no, replaced)
+            if ok:
+                logger.info(f"Replaced '{target_old}' → '{new}' on line {line_no} of {path.name} via IPC")
+                return f"Done. Replaced '{target_old}' with '{new}' on line {line_no}."
         lines[idx] = replaced + eol
         self._write_lines(path, lines)
         logger.info(f"Replaced '{target_old}' → '{new}' on line {line_no} of {path.name}")
@@ -1020,6 +1450,11 @@ class ActionRouter:
 
     def _file_delete_lines(self, path: Path, start: int, end: int) -> bool:
         """Delete 1-indexed lines start..end inclusive. Returns True on success."""
+        if self.vscode.is_available():
+            ok = self.vscode.delete_lines(start, end)
+            if ok:
+                logger.info(f"Deleted lines {start}-{end} from {path.name} via IPC")
+                return True
         try:
             lines, _ = self._read_lines(path)
             idx_s = max(0, start - 1)
@@ -1040,6 +1475,12 @@ class ActionRouter:
         Uses the file's native EOL style so the inserted line doesn't corrupt endings.
         Preserves the indentation of the reference line.
         """
+        if self.vscode.is_available():
+            target_line = (line_no + 1) if after else line_no
+            ok = self.vscode.insert_line(target_line, text)
+            if ok:
+                logger.info(f"Inserted line {target_line} into {path.name} via IPC")
+                return True
         try:
             lines, eol = self._read_lines(path)
             idx = line_no - 1
@@ -1104,3 +1545,78 @@ class ActionRouter:
         except Exception as e:
             logger.error(f"_file_toggle_comment failed: {e}")
             return False
+
+    def _file_append_to_line(self, path: Path, line_no: int, text: str) -> bool:
+        """Append text to the end of 1-indexed line line_no before the EOL."""
+        try:
+            lines, _ = self._read_lines(path)
+            idx = line_no - 1
+            if idx < 0 or idx >= len(lines):
+                return False
+            orig = lines[idx]
+            eol = ""
+            stripped = orig
+            for ending in ("\r\n", "\n", "\r"):
+                if orig.endswith(ending):
+                    eol = ending
+                    stripped = orig[:-len(ending)]
+                    break
+            lines[idx] = stripped + text + eol
+            self._write_lines(path, lines)
+            return True
+        except Exception as e:
+            logger.error(f"_file_append_to_line failed: {e}")
+            return False
+
+    def _file_duplicate_line(self, path: Path, line_no: int) -> bool:
+        """Duplicate 1-indexed line line_no (inserting a copy right below it)."""
+        try:
+            lines, _ = self._read_lines(path)
+            idx = line_no - 1
+            if idx < 0 or idx >= len(lines):
+                return False
+            lines.insert(idx + 1, lines[idx])
+            self._write_lines(path, lines)
+            return True
+        except Exception as e:
+            logger.error(f"_file_duplicate_line failed: {e}")
+            return False
+
+    def _file_move_line(self, path: Path, line_no: int, up: bool) -> bool:
+        """Move 1-indexed line line_no up or down by swapping with adjacent line."""
+        try:
+            lines, _ = self._read_lines(path)
+            idx = line_no - 1
+            target_idx = idx - 1 if up else idx + 1
+            if idx < 0 or idx >= len(lines) or target_idx < 0 or target_idx >= len(lines):
+                return False
+            lines[idx], lines[target_idx] = lines[target_idx], lines[idx]
+            self._write_lines(path, lines)
+            return True
+        except Exception as e:
+            logger.error(f"_file_move_line failed: {e}")
+            return False
+
+    def _file_indent_line(self, path: Path, line_no: int, indent: bool) -> bool:
+        """Add or remove 4 spaces at the start of 1-indexed line line_no."""
+        try:
+            lines, _ = self._read_lines(path)
+            idx = line_no - 1
+            if idx < 0 or idx >= len(lines):
+                return False
+            orig = lines[idx]
+            if indent:
+                lines[idx] = "    " + orig
+            else:
+                if orig.startswith("    "):
+                    lines[idx] = orig[4:]
+                elif orig.startswith("\t"):
+                    lines[idx] = orig[1:]
+                else:
+                    lines[idx] = orig.lstrip(" ")
+            self._write_lines(path, lines)
+            return True
+        except Exception as e:
+            logger.error(f"_file_indent_line failed: {e}")
+            return False
+

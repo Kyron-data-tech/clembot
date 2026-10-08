@@ -120,6 +120,21 @@ test-results/
 scratch/
 *.scratch.*
 temp_test_*/
+clembot_test_*
+test_*.png
+
+# ─── Data & Training Caches ───────────────────────────────────────────────────
+data/*.tmp
+data/*.bak
+data/*.cache
+data/*.log
+!data/faq_training_set.json
+
+# ─── VS Code Local State & Databases ──────────────────────────────────────────
+*.vscdb
+*.vscdb.backup
+*.db-journal
+*.sqlite3-journal
 
 # ─── Whisper Model Cache (large binary files, downloaded on demand) ───────────
 # Models are auto-downloaded to %APPDATA%/faster_whisper or ~/.cache — not in repo
@@ -141,6 +156,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 package-lock.json
+!vscode-extension/package-lock.json
 
 # ─── Merge & System Artifacts ─────────────────────────────────────────────────
 *.orig

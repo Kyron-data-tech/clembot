@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Tests](https://img.shields.io/badge/Tests-461%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-537%20passing-brightgreen)
 ![Status](https://img.shields.io/badge/Status-Active-brightgreen)
 
 **Control your entire PC with your voice — open apps, edit code, manage files, switch browser tabs, and more.**
@@ -259,14 +259,18 @@ clembot/
 │   ├── ui/                     # CustomTkinter GUI + system tray
 │   ├── security/               # Shell safety, path protection
 │   └── doctor.py               # System health check
+├── data/
+│   └── faq_training_set.json   # 179 curated FAQ training examples (Windows & macOS)
 ├── requirements/
 │   ├── base.txt                # Shared cross-platform deps
 │   ├── windows.txt             # Windows-only deps (-r base.txt)
 │   └── macos.txt               # macOS-only deps (-r base.txt)
 ├── scripts/
 │   ├── install_windows.ps1     # Windows automated setup
-│   └── install_macos.sh        # macOS automated setup
-├── tests/                      # 461 passing unit tests
+│   ├── install_macos.sh        # macOS automated setup
+│   └── generate_faq_data.py    # FAQ dataset generator
+├── tests/                      # 487 passing unit tests
+│   ├── test_faq_training.py    # FAQ training set & intent schema tests
 │   ├── test_platform_macos.py  # macOS platform layer (78 tests, mock-based)
 │   └── ...
 ├── vscode-extension/           # TypeScript VS Code extension
@@ -294,7 +298,7 @@ Run `python -m app.doctor` to check all permissions and get step-by-step instruc
 ## Running Tests
 
 ```bash
-# All 461 tests (Windows or macOS — all mock-based, no real OS calls needed)
+# All 537 tests (Windows or macOS — all mock-based, no real OS calls needed)
 python -m unittest discover -s tests -v
 
 # macOS platform layer only (78 tests)

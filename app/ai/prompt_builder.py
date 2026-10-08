@@ -19,52 +19,71 @@ class AIPromptBuilder:
         # File System
         "open_folder", "create_folder", "create_file", "rename_path",
         "move_path", "copy_path", "trash_path", "list_directory", "find_file",
+        "open_recent_files", "open_latest_download", "reveal_in_file_manager", "quick_look", "open_file_with_app",
         # Windows & Apps
         "open_app", "close_app", "window_minimize", "window_maximize",
         "window_restore", "window_close", "window_snap_left", "window_snap_right",
         "window_center", "show_desktop",
+        "switch_window", "switch_same_app_window", "task_view", "window_full_screen",
+        "next_desktop", "prev_desktop",
         # Web & Browser
         "web_search", "open_url", "browser_new_tab", "browser_close_tab",
         "browser_next_tab", "browser_prev_tab", "browser_reload",
-        "browser_reopen_tab",
+        "browser_reopen_tab", "browser_last_tab", "browser_new_window",
         "browser_switch_tab_number",   # amount = tab number (1-based)
-        "browser_show_history",        # open Ctrl+H (search history)
-        "browser_show_downloads",      # open Ctrl+J (browser downloads)
-        "browser_bookmark",            # Ctrl+D
+        "browser_show_history",        # open Ctrl+H / Cmd+Y (search history)
+        "browser_show_downloads",      # open Ctrl+J / Cmd+Opt+L (browser downloads)
+        "browser_bookmark", "browser_bookmark_page", "browser_bookmarks_list",
+        "browser_address_bar", "browser_find_in_page", "browser_clear_data",
+        "browser_task_manager", "browser_go_back", "browser_go_forward",
         "browser_zoom_in", "browser_zoom_out", "browser_zoom_reset",
-        "browser_incognito",           # open incognito/private window
-        # VS Code Navigation
+        "browser_incognito", "browser_open_incognito",
+        # VS Code Navigation & IDE
         "vscode_jump_line", "vscode_open_file", "vscode_close_file", "vscode_read_line",
-        # VS Code Code Editing (legacy token-based, still supported)
+        "vscode_open_folder", "vscode_open_file_at_line", "vscode_diff",
+        "vscode_open_current_window", "vscode_open_new_window", "vscode_quick_open",
+        "vscode_command_palette", "vscode_terminal", "vscode_toggle_sidebar",
+        "vscode_settings", "vscode_goto_symbol", "vscode_goto_definition",
+        "vscode_format", "vscode_save_all", "vscode_search_project",
+        "vscode_find_todo", "vscode_replace_all", "undo_last_edit",
+        # VS Code Code Editing (token-based and semantic patch)
         "vscode_edit", "vscode_run_code", "vscode_undo",
-        # VS Code Targeted Semantic Patch (NEW — preferred for code modifications)
         "vscode_patch",
-        # VS Code Inspection (NEW)
+        # VS Code Inspection
         "vscode_inspect", "vscode_find_symbols", "vscode_outline",
-        # System & Clipboard
-        "screenshot", "screen_read",
+        # System & Clipboard & Screen Interaction
+        "screenshot", "screen_read", "screen_read_all",
+        "screen_click", "screen_double_click", "screen_right_click", "screen_select", "screen_open",
         "volume_up", "volume_down", "volume_mute",
-
         "copy", "paste", "clear_clipboard", "select_all", "undo", "redo", "save",
         # Conversational Q&A
         "answer_question",
     }
 
-    SYSTEM_INSTRUCTION = """You are Clembot, a natural, conversational voice coding assistant on Windows 10/11.
+    SYSTEM_INSTRUCTION = """You are Clembot, an intelligent voice assistant on Windows 10/11.
 You understand casual human speech, Hinglish (Hindi-English mix), and multi-turn conversation.
-You can control Windows, edit code precisely, and also just chat naturally like a helpful AI friend.
+You can Control Windows, automate browsers, edit code precisely, and chat naturally.
 
 === INTENT CLASSIFICATION ===
-Internally classify each request into ONE of these 9 intents:
-1. conversation    - Casual chat, greetings, explanations, questions ("How are you?", "Explain recursion", "What does this error mean?")
-2. windows_action  - Control Windows (apps, windows, volume, screenshot)
-3. file_operation  - Files and folders (create, rename, move, delete)
-4. browser_op      - Browser tabs, search, navigation
-5. vscode_nav      - VS Code navigation (jump to line, open file)
-6. code_inspection - Read/explain/find code ("What does this do?", "Find the login function", "Show me the file outline")
-7. code_mod        - Modify code using targeted semantic patch (PREFERRED over whole-file regeneration)
-8. code_exec       - Run code, run tests, terminal execution
-9. multi_step      - Multiple sequential actions
+Each user request maps to one of the 10 Clembot intents:
+1. open_app        - Launch or close applications (Chrome, VS Code, Notepad, Safari, etc.)
+2. open_file       - Open, preview, reveal, or open files with apps
+3. open_folder     - Open directories, standard folders, recent files, trash/recycle bin
+4. open_url        - Open website URLs or perform web/Google searches
+5. browser_tab     - Switch, open, close, or reopen browser tabs
+6. browser_page    - Page actions: history, downloads, bookmarks, address bar, zoom, reload, clear data
+7. vscode_open     - Open project folders, jump to lines/columns, diffs, palette, terminal, symbols
+8. vscode_edit     - Modify code lines, replace, delete, comment, format, semantic patches
+9. window_switch   - Window switching (Alt+Tab, Cmd+Tab), task view, minimize, maximize, full screen
+10. system         - System controls (volume, screenshots, clipboard, screen reading, chat)
+
+=== VOICE / TTS OUTPUT RULES ===
+- "reply" is spoken aloud via Text-to-Speech.
+- CRITICAL: Keep replies short: under 15 words spoken response.
+- NO markdown: no *, **, #, -, •, `, backtick code blocks, or emojis.
+- Write naturally like spoken speech.
+- Never read raw code blocks aloud.
+- Say what action occurred in plain, brief words (e.g. "Opening Chrome.", "Line 20 replaced.", "New tab.").
 
 === CONVERSATIONAL BEHAVIOUR ===
 - Treat every message as natural conversation, not a rigid command.
@@ -102,6 +121,12 @@ Standard Windows/File/Browser actions:
   browser_bookmark, browser_zoom_in, browser_zoom_out, browser_zoom_reset, browser_incognito
   screenshot             — saves a binary-thresholded screenshot (≤100 KB) to Pictures/Screenshots
   screen_read (query?)   — captures the screen and uses AI vision to describe / read what's visible
+  screen_read_all        — comprehensive whole-screen reading (active apps, open files, interactive elements)
+  screen_click (text)    — clicks on a displayed button, link, icon, or element matching text
+  screen_double_click (text) — double clicks on a displayed file, folder, or icon
+  screen_right_click (text)  — right clicks on a displayed item
+  screen_select (text)   — selects or focuses an item, checkbox, or text on screen
+  screen_open (text)     — opens a displayed file, folder, or application visible on screen
   volume_up, volume_down, volume_mute
   copy, paste, clear_clipboard, select_all, undo, redo, save
 

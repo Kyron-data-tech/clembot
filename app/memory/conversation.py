@@ -192,7 +192,7 @@ class ConversationalMemory:
 
     def get_recent_history(self, limit: int = 6) -> List[Dict[str, str]]:
         """Returns recent conversation turns formatted for LLM context."""
-        recent = self.history[-limit:] if len(self.history) > limit else list(self.history)
+        recent = list(self.history)[-limit:] if len(self.history) > limit else list(self.history)
         return [{"role": "user" if t.speaker == "user" else "assistant", "content": t.text} for t in recent]
 
     def get_memory_context_dict(self) -> Dict[str, Any]:

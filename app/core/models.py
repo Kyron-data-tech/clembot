@@ -84,3 +84,86 @@ class ActionResult(BaseModel):
     message: str
     data: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
+
+
+class FAQIntentSchema(BaseModel):
+    intent: str
+    os: str
+    slots: Dict[str, Any] = Field(default_factory=lambda: {
+        "app": "", "path": "", "url": "", "tab_index": 0, "line": 0, "end_line": 0, "text": ""
+    })
+    needs_confirmation: bool = False
+
+
+def map_plan_to_faq_schema(plan: AgentPlan, os_name: Optional[str] = None) -> FAQIntentSchema:
+    """Maps an AgentPlan to the Clembot FAQ Intent Schema (Windows / macOS)."""
+    import sys
+    detected_os = "macos" if (os_name == "macos" or (not os_name and sys.platform == "darwin")) else "windows"
+    slots: Dict[str, Any] = {
+        "app": "", "path": "", "url": "", "tab_index": 0, "line": 0, "end_line": 0, "text": ""
+    }
+
+    if not plan.actions:
+        return FAQIntentSchema(
+            intent="system",
+            os=detected_os,
+            slots=slots,
+            needs_confirmation=plan.needs_confirmation
+        )
+
+    act = plan.actions[0]
+    act_type = act.type.lower()
+    intent = "system"
+
+    if act_type in ("open_app", "close_app"):
+        intent = "open_app"
+        slots["app"] = act.app or ""
+    elif act_type in ("open_file", "open_file_with", "open_latest_download", "reveal_in_file_manager", "quick_look", "screen_open"):
+        intent = "open_file"
+        slots["path"] = act.path or act.text or ""
+        slots["app"] = act.app or ""
+    elif act_type in ("open_folder", "create_folder", "open_recent_files"):
+        intent = "open_folder"
+        slots["path"] = act.path or ""
+    elif act_type in ("open_url", "web_search"):
+        intent = "open_url"
+        slots["url"] = act.url or (f"https://www.google.com/search?q={act.query}" if act.query else "")
+    elif act_type in ("browser_new_tab", "browser_close_tab", "browser_next_tab", "browser_prev_tab",
+                      "browser_reopen_tab", "browser_switch_tab_number", "browser_last_tab"):
+        intent = "browser_tab"
+        slots["tab_index"] = act.amount or 0
+        slots["app"] = act.app or ""
+    elif act_type.startswith("browser_"):
+        intent = "browser_page"
+        slots["url"] = act.url or ""
+        slots["text"] = act.text or ""
+        slots["app"] = act.app or ""
+    elif act_type in ("vscode_open_file", "vscode_open_file_at_line", "vscode_jump_line", "vscode_open_folder",
+                      "vscode_diff", "vscode_quick_open", "vscode_command_palette", "vscode_terminal",
+                      "vscode_toggle_sidebar", "vscode_settings", "vscode_goto_symbol", "vscode_goto_definition",
+                      "vscode_close_file", "vscode_open_current_window", "vscode_open_new_window",
+                      "vscode_search_project", "vscode_read_line"):
+        intent = "vscode_open"
+        slots["path"] = act.path or ""
+        slots["line"] = act.line_number or 0
+        slots["text"] = act.text or ""
+    elif act_type in ("vscode_edit", "vscode_patch", "vscode_run_code", "vscode_undo", "vscode_format"):
+        intent = "vscode_edit"
+        slots["line"] = act.line_number or 0
+        slots["text"] = act.text or act.target_code or ""
+    elif act_type in ("switch_window", "switch_same_app_window", "task_view", "show_desktop",
+                      "window_minimize", "window_maximize", "window_restore", "window_close",
+                      "window_snap_left", "window_snap_right", "window_center", "window_full_screen",
+                      "next_desktop", "prev_desktop"):
+        intent = "window_switch"
+        slots["app"] = act.app or ""
+    else:
+        intent = "system"
+        slots["text"] = act.text or act.query or ""
+
+    return FAQIntentSchema(
+        intent=intent,
+        os=detected_os,
+        slots=slots,
+        needs_confirmation=plan.needs_confirmation
+    )

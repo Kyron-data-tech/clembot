@@ -6,12 +6,12 @@ This document outlines the testing procedures for verifying all components of th
 
 ## 1. Automated Unit Tests
 
-Clembot includes an automated test suite of **80 tests** covering filesystem operations, path resolution, fast command routing, safety policies, conversational memory, code intelligence, wake word detection, speech normalization, AI planning, friendly errors, the event bus guard, and more.
+Clembot includes a comprehensive automated test suite of **537 tests** covering filesystem operations, path resolution, fast command routing, safety policies, conversational memory, code intelligence, wake word detection, speech normalization, AI planning, friendly errors, screen interaction & reading, VS Code full access, FAQ training set conformity, event bus guards, and more.
 
 ### Running Automated Tests
-Open Windows PowerShell or Command Prompt in the repository root and run:
+Open Windows PowerShell, macOS Terminal, or Command Prompt in the repository root and run:
 
-```powershell
+```bash
 python -m unittest discover -s tests -v
 ```
 
@@ -22,6 +22,10 @@ python -m unittest discover -s tests -v
 | `tests/test_wake_word.py` | Activation ("Clembot activate yourself"), deactivation, phonetic variants ("clemburt", "clem ber", "clembur"). |
 | `tests/test_normalizer.py` | Homophone map ("post grey sql" → "postgresql"), filler stripping, fuzzy confidence matching. |
 | `tests/test_fast_router.py` | Instant offline matching for window management, folders, apps, web search, and line jumps. |
+| `tests/test_screen_interaction.py` | Whole screen reading, visual element grounding, clicking, double clicking, right clicking, selecting, and opening displayed items. |
+| `tests/test_screen_reader.py` | Display capture, binary vision thresholding, compression under 100 KB, OCR and Gemini vision integration. |
+| `tests/test_vscode_full_access.py` | Full VS Code programmatic access: jumping to lines, reading code, deleting lines, inserting text, commenting, duplicating, and diffing. |
+| `tests/test_faq_training.py` | Complete Windows & macOS FAQ training set verification (195 examples), sub-15-word response limits, intent/slot schema mapping. |
 | `tests/test_shell_targets.py` | Windows shell targets (File Explorer, This PC, Recycle Bin), `open_file` → `open_app` fallback. |
 | `tests/test_filesystem.py` | Folder and file creation, renaming, copying, moving, directory listing, and item counting. |
 | `tests/test_paths.py` | Dynamic Windows Known Folders resolution (Desktop, Downloads, Documents) and available drives (`C:\`). |

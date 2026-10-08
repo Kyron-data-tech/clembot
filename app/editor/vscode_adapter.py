@@ -238,7 +238,7 @@ def _resolve_from_vscdb() -> Optional[Path]:
                     try:
                         wdata = json.loads(ws_json.read_text(encoding="utf-8", errors="replace"))
                         folder_uri = wdata.get("folder", "")
-                        if folder_uri and _uri_to_path(folder_uri) == ws_folder:
+                        if folder_uri and str(_uri_to_path(folder_uri)).lower() == str(ws_folder).lower():
                             ordered_dirs.append(d)
                             break
                     except Exception:
@@ -445,6 +445,18 @@ class VSCodeAdapter(EditorAdapter):
             return VSCodeAdapter._cached_file
 
         return None
+
+    def get_cursor_line(self) -> int:
+        """Returns the 1-indexed cursor line number, or 1 if not available."""
+        if ipc_server.state.cursor_line and ipc_server.state.cursor_line > 0:
+            return ipc_server.state.cursor_line
+        return 1
+
+    def get_cursor_column(self) -> int:
+        """Returns the 1-indexed cursor column number, or 1 if not available."""
+        if ipc_server.state.cursor_column and ipc_server.state.cursor_column > 0:
+            return ipc_server.state.cursor_column
+        return 1
 
     def get_workspace(self) -> Optional[Path]:
         """Returns the current VS Code workspace folder."""
@@ -1082,6 +1094,130 @@ class VSCodeAdapter(EditorAdapter):
             pass
 
         return False
+
+    # ------------------------------------------------------------------
+    # Extended VS Code actions (proxied through IPC extension actions)
+    # ------------------------------------------------------------------
+
+    def _ipc_command(self, action: str, params: dict) -> bool:
+        """Send any named action to the extension via IPC and return success flag."""
+        if not self.is_available():
+            return False
+        import uuid
+        res = _ipc_post("/vscode/enqueue_command", {
+            "id": str(uuid.uuid4()), "action": action, "params": params
+        })
+        if not res.get("success"):
+            logger.debug(f"IPC {action} failed: {res.get('error')}")
+        return bool(res.get("success"))
+
+    def delete_lines(self, start_line: int, end_line: int) -> bool:
+        """Delete lines [start_line, end_line] (1-indexed, inclusive) via IPC or disk fallback."""
+        if self._ipc_command("delete_lines", {"start_line": start_line, "end_line": end_line}):
+            return True
+        fp = self.get_active_file()
+        if fp and fp.is_file():
+            try:
+                bak = fp.with_suffix(fp.suffix + ".bak")
+                shutil.copy2(fp, bak)
+                lines = fp.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
+                s, e = max(0, start_line - 1), min(len(lines), end_line)
+                del lines[s:e]
+                fp.write_text("".join(lines), encoding="utf-8")
+                return True
+            except Exception as ex:
+                logger.error(f"delete_lines disk fallback failed: {ex}")
+        return False
+
+    def insert_line(self, line_number: int, text: str) -> bool:
+        """Insert `text` as a new line before `line_number` (1-indexed) via IPC or disk fallback."""
+        if self._ipc_command("insert_line", {"line_number": line_number, "text": text}):
+            return True
+        fp = self.get_active_file()
+        if fp and fp.is_file():
+            try:
+                bak = fp.with_suffix(fp.suffix + ".bak")
+                shutil.copy2(fp, bak)
+                lines = fp.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
+                idx = max(0, min(line_number - 1, len(lines)))
+                eol = "\r\n" if lines and "\r\n" in lines[0] else "\n"
+                lines.insert(idx, text.rstrip("\r\n") + eol)
+                fp.write_text("".join(lines), encoding="utf-8")
+                return True
+            except Exception as ex:
+                logger.error(f"insert_line disk fallback failed: {ex}")
+        return False
+
+    def replace_line(self, line_number: int, new_text: str) -> bool:
+        """Replace the content of `line_number` (1-indexed) with `new_text`."""
+        if self._ipc_command("replace_line", {"line_number": line_number, "new_text": new_text}):
+            return True
+        fp = self.get_active_file() or Path("/dev/null")
+        return self.apply_edit(fp, line_number, line_number, new_text)
+
+    def find_and_replace(self, search: str, replace: str, use_regex: bool = False) -> bool:
+        """Find-and-replace all occurrences in the active document (IPC only)."""
+        return self._ipc_command(
+            "find_and_replace",
+            {"search": search, "replace": replace, "use_regex": use_regex}
+        )
+
+    def redo(self) -> bool:
+        """Redo last undone edit in VS Code."""
+        if self._ipc_command("redo", {}):
+            return True
+        try:
+            from app.platform_layer import platform_adapter
+            platform_adapter.send_hotkey("ctrl", "y")
+            return True
+        except Exception:
+            pass
+        return False
+
+    def format_document(self) -> bool:
+        """Trigger VS Code's Format Document action."""
+        if self._ipc_command("format_document", {}):
+            return True
+        try:
+            from app.platform_layer import platform_adapter
+            platform_adapter.send_hotkey("shift", "alt", "f")
+            return True
+        except Exception:
+            pass
+        return False
+
+    def toggle_comment(self, line_number: int, end_line: int = 0) -> bool:
+        """Toggle line comment for the given line range (1-indexed)."""
+        params: dict = {"line_number": line_number}
+        if end_line and end_line != line_number:
+            params["end_line"] = end_line
+        return self._ipc_command("toggle_comment", params)
+
+    def duplicate_line(self, line_number: int = 0) -> bool:
+        """Duplicate the given line (or current cursor line when 0)."""
+        params: dict = {}
+        if line_number:
+            params["line_number"] = line_number
+        return self._ipc_command("duplicate_line", params)
+
+    def go_to_definition(self) -> bool:
+        """Jump to the definition of the symbol under the cursor."""
+        return self._ipc_command("go_to_definition", {})
+
+    def move_line_up(self, count: int = 1) -> bool:
+        """Move the current cursor line up `count` times."""
+        return self._ipc_command("move_line_up", {"count": count})
+
+    def move_line_down(self, count: int = 1) -> bool:
+        """Move the current cursor line down `count` times."""
+        return self._ipc_command("move_line_down", {"count": count})
+
+    def select_line(self, line_number: int = 0) -> bool:
+        """Select entire line `line_number` (or cursor line if 0) in VS Code."""
+        params: dict = {}
+        if line_number:
+            params["line_number"] = line_number
+        return self._ipc_command("select_line", params)
 
     def get_vscode_context(self) -> Dict[str, Any]:
         active = self.get_active_file()

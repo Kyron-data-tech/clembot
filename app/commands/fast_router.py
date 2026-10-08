@@ -1,4 +1,5 @@
 import re
+import sys
 from pathlib import Path
 from typing import Optional, Tuple
 from app.core.models import AgentAction, AgentPlan
@@ -25,14 +26,18 @@ class FastCommandRouter:
 
     @classmethod
     def _build_exact_matches(cls):
+        is_mac = sys.platform == "darwin"
         return {
             # Window management
             "minimize the current window": AgentPlan(reply="Minimizing window.", actions=[AgentAction(type="window_minimize")]),
             "minimize this window": AgentPlan(reply="Minimizing window.", actions=[AgentAction(type="window_minimize")]),
             "minimize window": AgentPlan(reply="Minimizing window.", actions=[AgentAction(type="window_minimize")]),
+            "minimize this": AgentPlan(reply="Minimizing window.", actions=[AgentAction(type="window_minimize")]),
+            "minimize everything": AgentPlan(reply="Showing desktop.", actions=[AgentAction(type="show_desktop")]),
             "maximize the current window": AgentPlan(reply="Maximizing window.", actions=[AgentAction(type="window_maximize")]),
             "maximize this window": AgentPlan(reply="Maximizing window.", actions=[AgentAction(type="window_maximize")]),
             "maximize window": AgentPlan(reply="Maximizing window.", actions=[AgentAction(type="window_maximize")]),
+            "maximize this": AgentPlan(reply="Maximizing window.", actions=[AgentAction(type="window_maximize")]),
             "restore window": AgentPlan(reply="Restoring window.", actions=[AgentAction(type="window_restore")]),
             "close the current application": AgentPlan(reply="Closing application.", actions=[AgentAction(type="window_close")]),
             "close current window": AgentPlan(reply="Closing window.", actions=[AgentAction(type="window_close")]),
@@ -43,6 +48,21 @@ class FastCommandRouter:
             "right half": AgentPlan(reply="Moving window right.", actions=[AgentAction(type="window_snap_right")]),
             "center window": AgentPlan(reply="Centering window.", actions=[AgentAction(type="window_center")]),
             "show desktop": AgentPlan(reply="Showing desktop.", actions=[AgentAction(type="show_desktop")]),
+            "full screen": AgentPlan(reply="Toggling full screen.", actions=[AgentAction(type="window_full_screen")]),
+            "fullscreen": AgentPlan(reply="Toggling full screen.", actions=[AgentAction(type="window_full_screen")]),
+
+            # Window & App Switching
+            "switch window": AgentPlan(reply="Switching app." if is_mac else "Switching window.", actions=[AgentAction(type="switch_window")]),
+            "alt tab": AgentPlan(reply="Switching app." if is_mac else "Switching window.", actions=[AgentAction(type="switch_window")]),
+            "switch app": AgentPlan(reply="Switching app.", actions=[AgentAction(type="switch_window")]),
+            "command tab": AgentPlan(reply="Switching app.", actions=[AgentAction(type="switch_window")]),
+            "switch window of the same app": AgentPlan(reply="Switching window.", actions=[AgentAction(type="switch_same_app_window")]),
+            "show all windows": AgentPlan(reply="Showing all windows.", actions=[AgentAction(type="task_view")]),
+            "task view": AgentPlan(reply="Showing all windows.", actions=[AgentAction(type="task_view")]),
+            "mission control": AgentPlan(reply="Showing all windows.", actions=[AgentAction(type="task_view")]),
+            "next desktop": AgentPlan(reply="Switching desktop.", actions=[AgentAction(type="next_desktop")]),
+            "previous desktop": AgentPlan(reply="Switching desktop.", actions=[AgentAction(type="prev_desktop")]),
+            "prev desktop": AgentPlan(reply="Switching desktop.", actions=[AgentAction(type="prev_desktop")]),
 
             # System & Media
             "take a screenshot": AgentPlan(reply="Taking screenshot.", actions=[AgentAction(type="screenshot")]),
@@ -72,11 +92,19 @@ class FastCommandRouter:
             "what does it show": AgentPlan(reply="Looking at the screen.", actions=[AgentAction(type="screen_read")]),
             "analyse the screen": AgentPlan(reply="Analysing the screen.", actions=[AgentAction(type="screen_read")]),
             "analyze the screen": AgentPlan(reply="Analysing the screen.", actions=[AgentAction(type="screen_read")]),
+            "read whole screen": AgentPlan(reply="Reading the entire screen.", actions=[AgentAction(type="screen_read_all")]),
+            "read the whole screen": AgentPlan(reply="Reading the entire screen.", actions=[AgentAction(type="screen_read_all")]),
+            "read entire screen": AgentPlan(reply="Reading the entire screen.", actions=[AgentAction(type="screen_read_all")]),
+            "read my whole screen": AgentPlan(reply="Reading the entire screen.", actions=[AgentAction(type="screen_read_all")]),
+            "read all screen": AgentPlan(reply="Reading the entire screen.", actions=[AgentAction(type="screen_read_all")]),
+            "what is displayed on the screen": AgentPlan(reply="Reading what is displayed.", actions=[AgentAction(type="screen_read")]),
+            "what is displayed on my screen": AgentPlan(reply="Reading what is displayed.", actions=[AgentAction(type="screen_read")]),
+            "what is displayed": AgentPlan(reply="Reading what is displayed.", actions=[AgentAction(type="screen_read")]),
+            "what is displayed on screen": AgentPlan(reply="Reading what is displayed.", actions=[AgentAction(type="screen_read")]),
             "capture the screen": AgentPlan(reply="Capturing the screen.", actions=[AgentAction(type="screenshot")]),
             "capture screen": AgentPlan(reply="Capturing the screen.", actions=[AgentAction(type="screenshot")]),
             "capture the display": AgentPlan(reply="Capturing the screen.", actions=[AgentAction(type="screenshot")]),
             "capture display": AgentPlan(reply="Capturing the screen.", actions=[AgentAction(type="screenshot")]),
-
 
             "volume up": AgentPlan(reply="Volume up.", actions=[AgentAction(type="volume_up")]),
             "turn volume up": AgentPlan(reply="Volume up.", actions=[AgentAction(type="volume_up")]),
@@ -86,7 +114,7 @@ class FastCommandRouter:
             "mute volume": AgentPlan(reply="Toggling mute.", actions=[AgentAction(type="volume_mute")]),
             "unmute": AgentPlan(reply="Toggling mute.", actions=[AgentAction(type="volume_mute")]),
 
-            # Clipboard
+            # Clipboard & Editing
             "copy this": AgentPlan(reply="Copied.", actions=[AgentAction(type="copy")]),
             "copy": AgentPlan(reply="Copied.", actions=[AgentAction(type="copy")]),
             "paste": AgentPlan(reply="Pasting.", actions=[AgentAction(type="paste")]),
@@ -96,51 +124,82 @@ class FastCommandRouter:
             "undo": AgentPlan(reply="Undone.", actions=[AgentAction(type="undo")]),
             "redo": AgentPlan(reply="Redone.", actions=[AgentAction(type="redo")]),
             "save": AgentPlan(reply="Saved.", actions=[AgentAction(type="save")]),
+            "save file": AgentPlan(reply="Saved.", actions=[AgentAction(type="save")]),
+            "save all": AgentPlan(reply="Saved.", actions=[AgentAction(type="vscode_save_all")]),
 
             # Browser tabs & navigation
-            "new tab": AgentPlan(reply="Opening new tab.", actions=[AgentAction(type="browser_new_tab")]),
-            "open a new tab": AgentPlan(reply="Opening new tab.", actions=[AgentAction(type="browser_new_tab")]),
-            "open new tab": AgentPlan(reply="Opening new tab.", actions=[AgentAction(type="browser_new_tab")]),
-            "create a new tab": AgentPlan(reply="Opening new tab.", actions=[AgentAction(type="browser_new_tab")]),
-            "create new tab": AgentPlan(reply="Opening new tab.", actions=[AgentAction(type="browser_new_tab")]),
-            "close tab": AgentPlan(reply="Closing tab.", actions=[AgentAction(type="vscode_close_file")]),
-            "close this tab": AgentPlan(reply="Closing tab.", actions=[AgentAction(type="vscode_close_file")]),
-            "close current tab": AgentPlan(reply="Closing current tab.", actions=[AgentAction(type="vscode_close_file")]),
-            "close active tab": AgentPlan(reply="Closing active tab.", actions=[AgentAction(type="vscode_close_file")]),
-            "close this file": AgentPlan(reply="Closing active file in VS Code.", actions=[AgentAction(type="vscode_close_file")]),
-            "close the file": AgentPlan(reply="Closing active file in VS Code.", actions=[AgentAction(type="vscode_close_file")]),
-            "close file": AgentPlan(reply="Closing active file in VS Code.", actions=[AgentAction(type="vscode_close_file")]),
-            "close active file": AgentPlan(reply="Closing active file in VS Code.", actions=[AgentAction(type="vscode_close_file")]),
-            "close current file": AgentPlan(reply="Closing active file in VS Code.", actions=[AgentAction(type="vscode_close_file")]),
-            "close file in vscode": AgentPlan(reply="Closing file in VS Code.", actions=[AgentAction(type="vscode_close_file")]),
-            "close vscode file": AgentPlan(reply="Closing file in VS Code.", actions=[AgentAction(type="vscode_close_file")]),
-            "close file vscode": AgentPlan(reply="Closing file in VS Code.", actions=[AgentAction(type="vscode_close_file")]),
+            "new tab": AgentPlan(reply="New tab.", actions=[AgentAction(type="browser_new_tab")]),
+            "open a new tab": AgentPlan(reply="New tab.", actions=[AgentAction(type="browser_new_tab")]),
+            "open new tab": AgentPlan(reply="New tab.", actions=[AgentAction(type="browser_new_tab")]),
+            "create a new tab": AgentPlan(reply="New tab.", actions=[AgentAction(type="browser_new_tab")]),
+            "create new tab": AgentPlan(reply="New tab.", actions=[AgentAction(type="browser_new_tab")]),
+            "close tab": AgentPlan(reply="Tab closed.", actions=[AgentAction(type="browser_close_tab")]),
+            "close this tab": AgentPlan(reply="Tab closed.", actions=[AgentAction(type="browser_close_tab")]),
+            "close current tab": AgentPlan(reply="Tab closed.", actions=[AgentAction(type="browser_close_tab")]),
+            "close active tab": AgentPlan(reply="Tab closed.", actions=[AgentAction(type="browser_close_tab")]),
+            "close this file": AgentPlan(reply="Closed.", actions=[AgentAction(type="vscode_close_file")]),
+            "close the file": AgentPlan(reply="Closed.", actions=[AgentAction(type="vscode_close_file")]),
+            "close file": AgentPlan(reply="Closed.", actions=[AgentAction(type="vscode_close_file")]),
+            "close active file": AgentPlan(reply="Closed.", actions=[AgentAction(type="vscode_close_file")]),
+            "close current file": AgentPlan(reply="Closed.", actions=[AgentAction(type="vscode_close_file")]),
+            "close file in vscode": AgentPlan(reply="Closed.", actions=[AgentAction(type="vscode_close_file")]),
+            "close vscode file": AgentPlan(reply="Closed.", actions=[AgentAction(type="vscode_close_file")]),
+            "close file vscode": AgentPlan(reply="Closed.", actions=[AgentAction(type="vscode_close_file")]),
             "next tab": AgentPlan(reply="Next tab.", actions=[AgentAction(type="browser_next_tab")]),
             "switch tab": AgentPlan(reply="Next tab.", actions=[AgentAction(type="browser_next_tab")]),
             "previous tab": AgentPlan(reply="Previous tab.", actions=[AgentAction(type="browser_prev_tab")]),
-            "reopen tab": AgentPlan(reply="Reopened tab.", actions=[AgentAction(type="browser_reopen_tab")]),
-            "reload": AgentPlan(reply="Reloading.", actions=[AgentAction(type="browser_reload")]),
-            "refresh": AgentPlan(reply="Reloading.", actions=[AgentAction(type="browser_reload")]),
+            "go back a tab": AgentPlan(reply="Previous tab.", actions=[AgentAction(type="browser_prev_tab")]),
+            "reopen tab": AgentPlan(reply="Reopened.", actions=[AgentAction(type="browser_reopen_tab")]),
+            "reopen closed tab": AgentPlan(reply="Reopened.", actions=[AgentAction(type="browser_reopen_tab")]),
+            "undo close tab": AgentPlan(reply="Reopened.", actions=[AgentAction(type="browser_reopen_tab")]),
+            "go to the last tab": AgentPlan(reply="Last tab.", actions=[AgentAction(type="browser_last_tab")]),
+            "last tab": AgentPlan(reply="Last tab.", actions=[AgentAction(type="browser_last_tab")]),
+            "open a new window": AgentPlan(reply="New window.", actions=[AgentAction(type="browser_new_window")]),
+            "new window": AgentPlan(reply="New window.", actions=[AgentAction(type="browser_new_window")]),
+            "open incognito": AgentPlan(reply="Opening a private window.", actions=[AgentAction(type="browser_open_incognito")]),
+            "open private window": AgentPlan(reply="Opening a private window.", actions=[AgentAction(type="browser_open_incognito")]),
+            "open incognito window": AgentPlan(reply="Opening a private window.", actions=[AgentAction(type="browser_open_incognito")]),
+            "private window": AgentPlan(reply="Opening a private window.", actions=[AgentAction(type="browser_open_incognito")]),
+            "open private": AgentPlan(reply="Opening a private window.", actions=[AgentAction(type="browser_open_incognito")]),
+            "reload": AgentPlan(reply="Refreshing.", actions=[AgentAction(type="browser_reload")]),
+            "refresh": AgentPlan(reply="Refreshing.", actions=[AgentAction(type="browser_reload")]),
+            "go back": AgentPlan(reply="Going back.", actions=[AgentAction(type="browser_go_back")]),
+            "go forward": AgentPlan(reply="Going forward.", actions=[AgentAction(type="browser_go_forward")]),
+            "focus address bar": AgentPlan(reply="Address bar ready.", actions=[AgentAction(type="browser_address_bar")]),
+            "address bar": AgentPlan(reply="Address bar ready.", actions=[AgentAction(type="browser_address_bar")]),
+            "zoom in": AgentPlan(reply="Zoomed.", actions=[AgentAction(type="browser_zoom_in")]),
+            "zoom out": AgentPlan(reply="Zoomed.", actions=[AgentAction(type="browser_zoom_out")]),
+            "reset zoom": AgentPlan(reply="Zoomed.", actions=[AgentAction(type="browser_zoom_reset")]),
+            "zoom reset": AgentPlan(reply="Zoomed.", actions=[AgentAction(type="browser_zoom_reset")]),
+            "open bookmarks": AgentPlan(reply="Opening bookmarks.", actions=[AgentAction(type="browser_bookmarks_list")]),
+            "show bookmarks": AgentPlan(reply="Opening bookmarks.", actions=[AgentAction(type="browser_bookmarks_list")]),
+            "bookmarks": AgentPlan(reply="Opening bookmarks.", actions=[AgentAction(type="browser_bookmarks_list")]),
+            "bookmark this page": AgentPlan(reply="Bookmarked.", actions=[AgentAction(type="browser_bookmark_page")]),
+            "bookmark page": AgentPlan(reply="Bookmarked.", actions=[AgentAction(type="browser_bookmark_page")]),
+            "clear browsing data": AgentPlan(reply="Opened. Please confirm.", actions=[AgentAction(type="browser_clear_data")], needs_confirmation=True),
+            "open task manager of chrome": AgentPlan(reply="Opening Chrome's task manager.", actions=[AgentAction(type="browser_task_manager")]),
+            "chrome task manager": AgentPlan(reply="Opening Chrome's task manager.", actions=[AgentAction(type="browser_task_manager")]),
 
             # Browser Search History & Downloads
-            "show search history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
-            "show browser search history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
-            "show browser history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
-            "show history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
-            "open search history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
-            "open browser history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
-            "open history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
-            "search history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
-            "browser history": AgentPlan(reply="Opening search history.", actions=[AgentAction(type="browser_show_history")]),
-            "show downloads folder": AgentPlan(reply="Opening downloads.", actions=[AgentAction(type="browser_show_downloads")]),
-            "show download folder": AgentPlan(reply="Opening downloads.", actions=[AgentAction(type="browser_show_downloads")]),
-            "show browser downloads": AgentPlan(reply="Opening downloads.", actions=[AgentAction(type="browser_show_downloads")]),
-            "show browser download folder": AgentPlan(reply="Opening downloads.", actions=[AgentAction(type="browser_show_downloads")]),
-            "browser downloads": AgentPlan(reply="Opening downloads.", actions=[AgentAction(type="browser_show_downloads")]),
-            "open browser downloads": AgentPlan(reply="Opening downloads.", actions=[AgentAction(type="browser_show_downloads")]),
+            "show search history": AgentPlan(reply="Opening history.", actions=[AgentAction(type="browser_show_history")]),
+            "show browser search history": AgentPlan(reply="Opening history.", actions=[AgentAction(type="browser_show_history")]),
+            "show browser history": AgentPlan(reply="Opening history.", actions=[AgentAction(type="browser_show_history")]),
+            "show history": AgentPlan(reply="Opening history.", actions=[AgentAction(type="browser_show_history")]),
+            "open search history": AgentPlan(reply="Opening history.", actions=[AgentAction(type="browser_show_history")]),
+            "open browser history": AgentPlan(reply="Opening history.", actions=[AgentAction(type="browser_show_history")]),
+            "open history": AgentPlan(reply="Opening history.", actions=[AgentAction(type="browser_show_history")]),
+            "search history": AgentPlan(reply="Opening history.", actions=[AgentAction(type="browser_show_history")]),
+            "browser history": AgentPlan(reply="Opening history.", actions=[AgentAction(type="browser_show_history")]),
+            "show downloads folder": AgentPlan(reply="Opening browser downloads.", actions=[AgentAction(type="browser_show_downloads")]),
+            "show download folder": AgentPlan(reply="Opening Downloads.", actions=[AgentAction(type="open_folder", path="Downloads")]),
+            "show browser downloads": AgentPlan(reply="Opening browser downloads.", actions=[AgentAction(type="browser_show_downloads")]),
+            "show browser download folder": AgentPlan(reply="Opening browser downloads.", actions=[AgentAction(type="browser_show_downloads")]),
+            "browser downloads": AgentPlan(reply="Opening browser downloads.", actions=[AgentAction(type="browser_show_downloads")]),
+            "open browser downloads": AgentPlan(reply="Opening browser downloads.", actions=[AgentAction(type="browser_show_downloads")]),
 
             # Standard Folders
             "open downloads": AgentPlan(reply="Opening Downloads.", actions=[AgentAction(type="open_folder", path="Downloads")]),
+            "show my downloads folder": AgentPlan(reply="Opening Downloads.", actions=[AgentAction(type="open_folder", path="Downloads")]),
             "open my downloads": AgentPlan(reply="Opening Downloads.", actions=[AgentAction(type="open_folder", path="Downloads")]),
             "open my downloads folder": AgentPlan(reply="Opening Downloads.", actions=[AgentAction(type="open_folder", path="Downloads")]),
             "open desktop": AgentPlan(reply="Opening Desktop.", actions=[AgentAction(type="open_folder", path="Desktop")]),
@@ -151,35 +210,129 @@ class FastCommandRouter:
             "open pictures": AgentPlan(reply="Opening Pictures.", actions=[AgentAction(type="open_folder", path="Pictures")]),
             "open music": AgentPlan(reply="Opening Music.", actions=[AgentAction(type="open_folder", path="Music")]),
             "open videos": AgentPlan(reply="Opening Videos.", actions=[AgentAction(type="open_folder", path="Videos")]),
+            "open movies": AgentPlan(reply="Opening Movies.", actions=[AgentAction(type="open_folder", path="Movies")]),
             "open onedrive": AgentPlan(reply="Opening OneDrive.", actions=[AgentAction(type="open_folder", path="OneDrive")]),
-            "open c drive": AgentPlan(reply="Opening C Drive.", actions=[AgentAction(type="open_folder", path="C:\\")]),
+            "open c drive": AgentPlan(reply="Opening C drive.", actions=[AgentAction(type="open_folder", path="C:\\")]),
+            "open recent files": AgentPlan(reply="Opening recent files.", actions=[AgentAction(type="open_recent_files")]),
+            "open recents": AgentPlan(reply="Opening recent files.", actions=[AgentAction(type="open_recent_files")]),
+            "open history folder": AgentPlan(reply="Browser history or recent files?", actions=[]),
+            "open home folder": AgentPlan(reply="Opening your home folder.", actions=[AgentAction(type="open_folder", path="~")]),
+            "open home": AgentPlan(reply="Opening your home folder.", actions=[AgentAction(type="open_folder", path="~")]),
+            "open applications": AgentPlan(reply="Opening Applications.", actions=[AgentAction(type="open_folder", path="/Applications" if is_mac else "shell:AppsFolder")]),
 
-            # Windows Shell Targets
+            # System Apps & Shell Targets
             "open file explorer": AgentPlan(reply="Opening File Explorer.", actions=[AgentAction(type="open_app", app="explorer")]),
             "open explorer": AgentPlan(reply="Opening File Explorer.", actions=[AgentAction(type="open_app", app="explorer")]),
             "file explorer": AgentPlan(reply="Opening File Explorer.", actions=[AgentAction(type="open_app", app="explorer")]),
             "explorer": AgentPlan(reply="Opening File Explorer.", actions=[AgentAction(type="open_app", app="explorer")]),
+            "open finder": AgentPlan(reply="Opening Finder.", actions=[AgentAction(type="open_app", app="Finder")]),
+            "finder": AgentPlan(reply="Opening Finder.", actions=[AgentAction(type="open_app", app="Finder")]),
             "open this pc": AgentPlan(reply="Opening This PC.", actions=[AgentAction(type="open_folder", path="::{20D04FE0-3AEA-1069-A2D8-08002B30309D}")]),
             "this pc": AgentPlan(reply="Opening This PC.", actions=[AgentAction(type="open_folder", path="::{20D04FE0-3AEA-1069-A2D8-08002B30309D}")]),
             "open my computer": AgentPlan(reply="Opening This PC.", actions=[AgentAction(type="open_folder", path="::{20D04FE0-3AEA-1069-A2D8-08002B30309D}")]),
             "my computer": AgentPlan(reply="Opening This PC.", actions=[AgentAction(type="open_folder", path="::{20D04FE0-3AEA-1069-A2D8-08002B30309D}")]),
-            "open recycle bin": AgentPlan(reply="Opening Recycle Bin.", actions=[AgentAction(type="open_folder", path="::{645FF040-5081-101B-9F08-00AA002F954E}")]),
-            "recycle bin": AgentPlan(reply="Opening Recycle Bin.", actions=[AgentAction(type="open_folder", path="::{645FF040-5081-101B-9F08-00AA002F954E}")]),
-            "open trash bin": AgentPlan(reply="Opening Recycle Bin.", actions=[AgentAction(type="open_folder", path="::{645FF040-5081-101B-9F08-00AA002F954E}")]),
-            "trash bin": AgentPlan(reply="Opening Recycle Bin.", actions=[AgentAction(type="open_folder", path="::{645FF040-5081-101B-9F08-00AA002F954E}")]),
-            "open settings": AgentPlan(reply="Opening Windows Settings.", actions=[AgentAction(type="open_url", url="ms-settings:")]),
-            "settings": AgentPlan(reply="Opening Windows Settings.", actions=[AgentAction(type="open_url", url="ms-settings:")]),
-            "open windows settings": AgentPlan(reply="Opening Windows Settings.", actions=[AgentAction(type="open_url", url="ms-settings:")]),
-            "windows settings": AgentPlan(reply="Opening Windows Settings.", actions=[AgentAction(type="open_url", url="ms-settings:")]),
+            "open recycle bin": AgentPlan(reply="Opening the Recycle Bin.", actions=[AgentAction(type="open_folder", path="::{645FF040-5081-101B-9F08-00AA002F954E}")]),
+            "recycle bin": AgentPlan(reply="Opening the Recycle Bin.", actions=[AgentAction(type="open_folder", path="::{645FF040-5081-101B-9F08-00AA002F954E}")]),
+            "open the recycle bin": AgentPlan(reply="Opening the Recycle Bin.", actions=[AgentAction(type="open_folder", path="::{645FF040-5081-101B-9F08-00AA002F954E}")]),
+            "open trash bin": AgentPlan(reply="Opening the Recycle Bin.", actions=[AgentAction(type="open_folder", path="::{645FF040-5081-101B-9F08-00AA002F954E}")]),
+            "trash bin": AgentPlan(reply="Opening the Recycle Bin.", actions=[AgentAction(type="open_folder", path="::{645FF040-5081-101B-9F08-00AA002F954E}")]),
+            "open trash": AgentPlan(reply="Opening the Trash." if is_mac else "Opening the Recycle Bin.", actions=[AgentAction(type="open_folder", path="~/.Trash" if is_mac else "::{645FF040-5081-101B-9F08-00AA002F954E}")]),
+            "open the trash": AgentPlan(reply="Opening the Trash." if is_mac else "Opening the Recycle Bin.", actions=[AgentAction(type="open_folder", path="~/.Trash" if is_mac else "::{645FF040-5081-101B-9F08-00AA002F954E}")]),
+            "open settings": AgentPlan(reply="Opening System Settings." if is_mac else "Opening Settings.", actions=[AgentAction(type="open_app", app="System Settings") if is_mac else AgentAction(type="open_url", url="ms-settings:")]),
+            "settings": AgentPlan(reply="Opening System Settings." if is_mac else "Opening Settings.", actions=[AgentAction(type="open_app", app="System Settings") if is_mac else AgentAction(type="open_url", url="ms-settings:")]),
+            "open windows settings": AgentPlan(reply="Opening Settings.", actions=[AgentAction(type="open_url", url="ms-settings:")]),
+            "windows settings": AgentPlan(reply="Opening Settings.", actions=[AgentAction(type="open_url", url="ms-settings:")]),
+            "open system settings": AgentPlan(reply="Opening System Settings.", actions=[AgentAction(type="open_app", app="System Settings") if is_mac else AgentAction(type="open_url", url="ms-settings:")]),
+            "system settings": AgentPlan(reply="Opening System Settings.", actions=[AgentAction(type="open_app", app="System Settings") if is_mac else AgentAction(type="open_url", url="ms-settings:")]),
+            "open system preferences": AgentPlan(reply="Opening System Settings.", actions=[AgentAction(type="open_app", app="System Settings")]),
+            "open wi fi settings": AgentPlan(reply="Opening Wi-Fi settings.", actions=[AgentAction(type="open_url", url="x-apple.systempreferences:com.apple.wifi-settings-extension" if is_mac else "ms-settings:network-wifi")]),
+            "open wifi settings": AgentPlan(reply="Opening Wi-Fi settings.", actions=[AgentAction(type="open_url", url="x-apple.systempreferences:com.apple.wifi-settings-extension" if is_mac else "ms-settings:network-wifi")]),
+            "open bluetooth settings": AgentPlan(reply="Opening Bluetooth settings.", actions=[AgentAction(type="open_url", url="x-apple.systempreferences:com.apple.BluetoothSettings" if is_mac else "ms-settings:bluetooth")]),
+            "open display settings": AgentPlan(reply="Opening display settings.", actions=[AgentAction(type="open_url", url="x-apple.systempreferences:com.apple.Displays-Settings.extension" if is_mac else "ms-settings:display")]),
+            "open activity monitor": AgentPlan(reply="Opening Activity Monitor.", actions=[AgentAction(type="open_app", app="Activity Monitor")]),
+            "activity monitor": AgentPlan(reply="Opening Activity Monitor.", actions=[AgentAction(type="open_app", app="Activity Monitor")]),
             "open task manager": AgentPlan(reply="Opening Task Manager.", actions=[AgentAction(type="open_app", app="taskmgr")]),
             "task manager": AgentPlan(reply="Opening Task Manager.", actions=[AgentAction(type="open_app", app="taskmgr")]),
             "open control panel": AgentPlan(reply="Opening Control Panel.", actions=[AgentAction(type="open_app", app="control")]),
             "control panel": AgentPlan(reply="Opening Control Panel.", actions=[AgentAction(type="open_app", app="control")]),
+            "open chrome": AgentPlan(reply="Opening Chrome.", actions=[AgentAction(type="open_app", app="chrome" if not is_mac else "Google Chrome")]),
+            "launch google chrome": AgentPlan(reply="Opening Chrome.", actions=[AgentAction(type="open_app", app="chrome" if not is_mac else "Google Chrome")]),
+            "open edge": AgentPlan(reply="Opening Edge.", actions=[AgentAction(type="open_app", app="msedge")]),
+            "open safari": AgentPlan(reply="Opening Safari.", actions=[AgentAction(type="open_app", app="Safari")]),
+            "open firefox": AgentPlan(reply="Opening Firefox.", actions=[AgentAction(type="open_app", app="firefox")]),
+            "open vs code": AgentPlan(reply="Opening VS Code.", actions=[AgentAction(type="open_app", app="code" if not is_mac else "Visual Studio Code")]),
+            "open visual studio code": AgentPlan(reply="Opening VS Code.", actions=[AgentAction(type="open_app", app="code" if not is_mac else "Visual Studio Code")]),
+            "open notepad": AgentPlan(reply="Opening Notepad.", actions=[AgentAction(type="open_app", app="notepad")]),
+            "open calculator": AgentPlan(reply="Opening Calculator.", actions=[AgentAction(type="open_app", app="calc" if not is_mac else "Calculator")]),
+            "open paint": AgentPlan(reply="Opening Paint.", actions=[AgentAction(type="open_app", app="mspaint")]),
+            "open terminal": AgentPlan(reply="Opening the terminal." if not is_mac else "Opening Terminal.", actions=[AgentAction(type="open_app", app="cmd" if not is_mac else "Terminal")]),
+            "open command prompt": AgentPlan(reply="Opening the terminal.", actions=[AgentAction(type="open_app", app="cmd")]),
+            "open powershell": AgentPlan(reply="Opening PowerShell.", actions=[AgentAction(type="open_app", app="powershell")]),
+            "open notes": AgentPlan(reply="Opening Notes.", actions=[AgentAction(type="open_app", app="Notes")]),
+            "open textedit": AgentPlan(reply="Opening TextEdit.", actions=[AgentAction(type="open_app", app="TextEdit")]),
 
-            # VS Code
+            # Conversational & Universal Controls (Part C)
+            "open": AgentPlan(reply="What would you like me to open?", actions=[]),
+            "open it": AgentPlan(reply="What would you like me to open?", actions=[]),
+            "cancel": AgentPlan(reply="Cancelled.", actions=[]),
+            "stop": AgentPlan(reply="Cancelled.", actions=[]),
+            "never mind": AgentPlan(reply="Cancelled.", actions=[]),
+            "help": AgentPlan(reply="Try saying: Open Chrome, Go to tab 3, or Open app.py at line 20.", actions=[]),
+            "undo that": AgentPlan(reply="Reverting last change.", actions=[AgentAction(type="undo_last_edit")]),
+
+            # VS Code IDE Controls
+            "open this folder in vs code": AgentPlan(reply="Opening the folder in VS Code.", actions=[AgentAction(type="vscode_open_folder", path=".")]),
+            "open this folder in vscode": AgentPlan(reply="Opening the folder in VS Code.", actions=[AgentAction(type="vscode_open_folder", path=".")]),
+            "open in the current window": AgentPlan(reply="Opened.", actions=[AgentAction(type="vscode_open_current_window")]),
+            "open in a new window": AgentPlan(reply="New window.", actions=[AgentAction(type="vscode_open_new_window")]),
+            "open command palette": AgentPlan(reply="Command palette.", actions=[AgentAction(type="vscode_command_palette")]),
+            "command palette": AgentPlan(reply="Command palette.", actions=[AgentAction(type="vscode_command_palette")]),
+            "open terminal in vs code": AgentPlan(reply="Terminal open.", actions=[AgentAction(type="vscode_terminal")]),
+            "open terminal in vscode": AgentPlan(reply="Terminal open.", actions=[AgentAction(type="vscode_terminal")]),
+            "toggle sidebar": AgentPlan(reply="Sidebar toggled.", actions=[AgentAction(type="vscode_toggle_sidebar")]),
+            "go to symbol": AgentPlan(reply="Go to symbol.", actions=[AgentAction(type="vscode_goto_symbol")]),
+            "go to symbol function": AgentPlan(reply="Go to symbol.", actions=[AgentAction(type="vscode_goto_symbol")]),
+            "go to function": AgentPlan(reply="Go to symbol.", actions=[AgentAction(type="vscode_goto_symbol")]),
+            "go to definition": AgentPlan(reply="Going to definition.", actions=[AgentAction(type="vscode_goto_definition")]),
+            "next editor tab": AgentPlan(reply="Switching tab.", actions=[AgentAction(type="vscode_next_file")]),
+            "previous editor tab": AgentPlan(reply="Switching tab.", actions=[AgentAction(type="vscode_prev_file")]),
+            "format the file": AgentPlan(reply="Formatted.", actions=[AgentAction(type="vscode_format")]),
+            "format file": AgentPlan(reply="Formatted.", actions=[AgentAction(type="vscode_format")]),
+            "format code": AgentPlan(reply="Formatted.", actions=[AgentAction(type="vscode_format")]),
+            "format document": AgentPlan(reply="Formatted.", actions=[AgentAction(type="vscode_format")]),
+            "save": AgentPlan(reply="Saving file.", actions=[AgentAction(type="save")]),
+            "save file": AgentPlan(reply="Saving file.", actions=[AgentAction(type="save")]),
+            "save this file": AgentPlan(reply="Saving file.", actions=[AgentAction(type="save")]),
+            "save document": AgentPlan(reply="Saving file.", actions=[AgentAction(type="save")]),
+            "save changes": AgentPlan(reply="Saving file.", actions=[AgentAction(type="save")]),
+            "save all": AgentPlan(reply="Saved.", actions=[AgentAction(type="vscode_save_all")]),
+            "save all files": AgentPlan(reply="Saved.", actions=[AgentAction(type="vscode_save_all")]),
+            "redo": AgentPlan(reply="Redone.", actions=[AgentAction(type="redo")]),
+            "redo edit": AgentPlan(reply="Redone.", actions=[AgentAction(type="redo")]),
+            "redo change": AgentPlan(reply="Redone.", actions=[AgentAction(type="redo")]),
+            "redo that": AgentPlan(reply="Redone.", actions=[AgentAction(type="redo")]),
+            "find todo": AgentPlan(reply="Find open.", actions=[AgentAction(type="vscode_find_todo")]),
+            "replace all": AgentPlan(reply="Find open.", actions=[AgentAction(type="vscode_replace_all")]),
             "run this python program": AgentPlan(reply="Running Python program.", actions=[AgentAction(type="vscode_run_code")]),
             "run this python file": AgentPlan(reply="Running Python file.", actions=[AgentAction(type="vscode_run_code")]),
             "run code": AgentPlan(reply="Running code.", actions=[AgentAction(type="vscode_run_code")]),
+            "run this code": AgentPlan(reply="Running code.", actions=[AgentAction(type="vscode_run_code")]),
+            "run the code": AgentPlan(reply="Running code.", actions=[AgentAction(type="vscode_run_code")]),
+            "run script": AgentPlan(reply="Running code.", actions=[AgentAction(type="vscode_run_code")]),
+            "duplicate line": AgentPlan(reply="Line duplicated.", actions=[AgentAction(type="vscode_edit", text="DUPLICATE_LINE:0")]),
+            "duplicate this line": AgentPlan(reply="Line duplicated.", actions=[AgentAction(type="vscode_edit", text="DUPLICATE_LINE:0")]),
+            "select line": AgentPlan(reply="Line selected.", actions=[AgentAction(type="vscode_edit", text="SELECT_LINE:0")]),
+            "select this line": AgentPlan(reply="Line selected.", actions=[AgentAction(type="vscode_edit", text="SELECT_LINE:0")]),
+            "move line up": AgentPlan(reply="Line moved.", actions=[AgentAction(type="vscode_edit", text="MOVE_LINE_UP:0")]),
+            "move this line up": AgentPlan(reply="Line moved.", actions=[AgentAction(type="vscode_edit", text="MOVE_LINE_UP:0")]),
+            "move line down": AgentPlan(reply="Line moved.", actions=[AgentAction(type="vscode_edit", text="MOVE_LINE_DOWN:0")]),
+            "move this line down": AgentPlan(reply="Line moved.", actions=[AgentAction(type="vscode_edit", text="MOVE_LINE_DOWN:0")]),
+            "delete this line": AgentPlan(reply="Line deleted.", actions=[AgentAction(type="vscode_edit", text="DELETE_LINE:0")], needs_confirmation=True),
+            "comment line": AgentPlan(reply="Comment toggled.", actions=[AgentAction(type="vscode_edit", text="COMMENT_LINE:0")]),
+            "comment this line": AgentPlan(reply="Comment toggled.", actions=[AgentAction(type="vscode_edit", text="COMMENT_LINE:0")]),
+            "comment out this line": AgentPlan(reply="Comment toggled.", actions=[AgentAction(type="vscode_edit", text="COMMENT_LINE:0")]),
+            "uncomment line": AgentPlan(reply="Line uncommented.", actions=[AgentAction(type="vscode_edit", text="UNCOMMENT_LINE:0")]),
+            "uncomment this line": AgentPlan(reply="Line uncommented.", actions=[AgentAction(type="vscode_edit", text="UNCOMMENT_LINE:0")]),
             "undo code change": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
             "undo the code change": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
             "undo change": AgentPlan(reply="Reverting last code change.", actions=[AgentAction(type="vscode_undo")]),
@@ -330,9 +483,65 @@ class FastCommandRouter:
             re.search(r'^what\s+do\s+you\s+see(?:\s+on\s+(?:the|my|this)?\s*(?:screen|display))?[.!?]*$', lower)
         )
         if screen_read_match:
+            reply_txt = "Reading the entire screen." if any(w in lower for w in ("whole", "all", "entire")) else "Reading the screen."
+            act = "screen_read_all" if any(w in lower for w in ("whole", "all", "entire")) else "screen_read"
             return AgentPlan(
-                reply="Reading the screen.",
-                actions=[AgentAction(type="screen_read")]
+                reply=reply_txt,
+                actions=[AgentAction(type=act)]
+            )
+
+        # Double click on screen element
+        double_click_m = re.search(r'^(?:please\s+)?double\s*click(?:\s+on)?\s+(.+?)[.!?]*$', lower)
+        if double_click_m:
+            target = double_click_m.group(1).strip().strip("'\" ")
+            return AgentPlan(
+                reply=f"Double clicking {target}.",
+                actions=[AgentAction(type="screen_double_click", text=target)]
+            )
+
+        # Right click on screen element
+        right_click_m = re.search(r'^(?:please\s+)?right\s*click(?:\s+on)?\s+(.+?)[.!?]*$', lower)
+        if right_click_m:
+            target = right_click_m.group(1).strip().strip("'\" ")
+            return AgentPlan(
+                reply=f"Right clicking {target}.",
+                actions=[AgentAction(type="screen_right_click", text=target)]
+            )
+
+        # Single click / tap on screen element
+        click_m = re.search(r'^(?:please\s+)?(?:click|tap|press)(?:\s+on)?\s+(.+?)[.!?]*$', lower)
+        if click_m:
+            target = click_m.group(1).strip().strip("'\" ")
+            if target in ("enter", "space", "escape", "esc", "tab", "backspace", "delete"):
+                return AgentPlan(reply=f"Pressing {target}.", actions=[AgentAction(type="press_key", text=target)])
+            if not target.startswith("tab ") and target != "tab":
+                return AgentPlan(
+                    reply=f"Clicking {target}.",
+                    actions=[AgentAction(type="screen_click", text=target)]
+                )
+
+        # Select displayed item on screen
+        select_screen_m = (
+            re.search(r'^(?:please\s+)?select\s+(.+?)\s+(?:on|from)\s+(?:the\s+)?(?:screen|display)[.!?]*$', lower) or
+            re.search(r'^(?:please\s+)?select\s+(?:the\s+)?(?:button|item|checkbox|text|file|folder)\s+(.+?)[.!?]*$', lower)
+        )
+        if select_screen_m:
+            target = select_screen_m.group(1).strip().strip("'\" ")
+            return AgentPlan(
+                reply=f"Selecting {target}.",
+                actions=[AgentAction(type="screen_select", text=target)]
+            )
+
+        # Open displayed item on screen
+        open_screen_m = (
+            re.search(r'^(?:please\s+)?open\s+(?:the\s+)?(?:displayed\s+)?(.+?)\s+(?:on|from)\s+(?:the\s+)?(?:screen|display)[.!?]*$', lower) or
+            re.search(r'^(?:please\s+)?open\s+(?:the\s+)?displayed\s+(.+?)[.!?]*$', lower)
+        )
+        if open_screen_m:
+            target = open_screen_m.group(1).strip().strip("'\" ")
+            return AgentPlan(
+                reply=f"Opening {target}.",
+                actions=[AgentAction(type="screen_open", text=target)]
             )
 
         # 2. Directory inspection / What's inside?
@@ -386,10 +595,12 @@ class FastCommandRouter:
         delete_match = re.search(r'^delete\s+(?:this\s+folder|this\s+file|file|folder)?\s*(.*?)[.!?]*$', cmd, re.IGNORECASE)
         if delete_match:
             target = delete_match.group(1).strip() or "this"
-            return AgentPlan(
-                reply=f"Preparing to delete {target}.",
-                actions=[AgentAction(type="trash_path", path=target)]
-            )
+            if not re.match(r'^lines?\b', target, re.IGNORECASE):
+                return AgentPlan(
+                    reply=f"Preparing to delete {target}.",
+                    actions=[AgentAction(type="trash_path", path=target)],
+                    needs_confirmation=True
+                )
 
         # 7. Move file / folder
         # e.g. "Move this file to Downloads", "Move college_notes.txt to Desktop", "Move the resume from Downloads to Documents"
@@ -602,15 +813,126 @@ class FastCommandRouter:
 
         # 12. Code Editor / VS Code navigation & line jumps
         # e.g. "Open app.py in VS Code", "Open my Django project in VS Code", "Go to line 25"
+        # Open file with specific editor: "open notes.txt in notepad", "open notes.txt in textedit"
+        open_with_app = re.search(r'^(?:open|show)\s+(.+?)\s+in\s+(notepad|textedit|word|excel)[.!?]*$', cmd, re.IGNORECASE)
+        if open_with_app:
+            f_target = open_with_app.group(1).strip()
+            app_target = open_with_app.group(2).strip()
+            return AgentPlan(
+                reply=f"Opening {f_target} in {app_target.capitalize()}.",
+                actions=[AgentAction(type="open_file_with_app", path=f_target, app=app_target)]
+            )
+
+        # Open latest download
+        latest_dl_m = re.search(r'^open\s+(?:the\s+)?(?:latest\s+file\s+in\s+downloads|file\s+i\s+downloaded\s+today)[.!?]*$', lower)
+        if latest_dl_m:
+            return AgentPlan(
+                reply="Opening latest download.",
+                actions=[AgentAction(type="open_latest_download")]
+            )
+
+        # Reveal in file manager: "show main.py in its folder", "show main.py in finder", "show main.py in file explorer"
+        show_in_folder = re.search(r'^show\s+(.+?)\s+in\s+(?:its\s+folder|file\s+explorer|finder|explorer)[.!?]*$', cmd, re.IGNORECASE)
+        if show_in_folder:
+            f_target = show_in_folder.group(1).strip()
+            rep = "Showing it in Finder." if sys.platform == "darwin" else "Showing it in File Explorer."
+            return AgentPlan(
+                reply=rep,
+                actions=[AgentAction(type="reveal_in_file_manager", path=f_target)]
+            )
+
+        # Quick look (macOS): "quick look at the file", "quick look at resume.pdf"
+        quick_look_m = re.search(r'^quick\s+look(?:\s+at)?(?:\s+the\s+file|\s+file)?(?:\s+(.+?))?[.!?]*$', cmd, re.IGNORECASE)
+        if quick_look_m and ("quick look" in lower):
+            f_target = quick_look_m.group(1).strip() if quick_look_m.group(1) else None
+            return AgentPlan(
+                reply="Previewing.",
+                actions=[AgentAction(type="quick_look", path=f_target)]
+            )
+
+        # Find on page: "find on page <word>", "find in page <word>"
+        find_page_m = re.search(r'^(?:find|search)\s+(?:on|in)\s+page\s+(?:for\s+)?(.+?)[.!?]*$', cmd, re.IGNORECASE)
+        if find_page_m:
+            page_query = find_page_m.group(1).strip()
+            return AgentPlan(
+                reply="Searching the page.",
+                actions=[AgentAction(type="browser_find_in_page", text=page_query)]
+            )
+
+        # VS Code: Open file at line: "open app.js at line 42", "go to line 42 in app.js"
+        open_at_line = re.search(r'^(?:open|launch)\s+(.+?)\s+at\s+line\s+(\w+(?:[\s-]+\w+)?)[.!?]*$', cmd, re.IGNORECASE)
+        open_at_line_inv = re.search(r'^(?:go\s+to|jump\s+to|navigate\s+to)\s+line\s+(\w+(?:[\s-]+\w+)?)\s+in\s+(.+?)[.!?]*$', cmd, re.IGNORECASE) if not open_at_line else None
+
+        if open_at_line:
+            from app.editor.code_edit_parser import _parse_line_number
+            f_target = open_at_line.group(1).strip()
+            ln = _parse_line_number(open_at_line.group(2).strip())
+            if ln and f_target:
+                return AgentPlan(
+                    reply=f"Opening {f_target} at line {ln}.",
+                    actions=[AgentAction(type="vscode_open_file_at_line", path=f_target, line_number=ln)]
+                )
+        elif open_at_line_inv:
+            from app.editor.code_edit_parser import _parse_line_number
+            ln = _parse_line_number(open_at_line_inv.group(1).strip())
+            f_target = open_at_line_inv.group(2).strip()
+            if ln and f_target:
+                return AgentPlan(
+                    reply=f"Opening {f_target} at line {ln}.",
+                    actions=[AgentAction(type="vscode_open_file_at_line", path=f_target, line_number=ln)]
+                )
+
+        # VS Code: Line + Column jump: "go to line 42 and column 10", "jump to line 42 col 10"
+        jump_col = re.search(r'^(?:go\s+to|jump\s+to|navigate\s+to)\s+line\s+(.+?)\s+(?:and\s+)?(?:column|col)\s+(.+?)[.!?]*$', cmd, re.IGNORECASE)
+        if jump_col:
+            from app.editor.code_edit_parser import _parse_line_number
+            ln = _parse_line_number(jump_col.group(1).strip())
+            col = _parse_line_number(jump_col.group(2).strip())
+            if ln and col:
+                return AgentPlan(
+                    reply=f"Line {ln}, column {col}.",
+                    actions=[AgentAction(type="vscode_jump_line", line_number=ln, amount=col)]
+                )
+
+        # VS Code: Compare files: "compare file A and file B", "compare A and B"
+        compare_match = re.search(r'^compare\s+(?:file\s+)?(.+?)\s+and\s+(?:file\s+)?(.+?)[.!?]*$', cmd, re.IGNORECASE)
+        if compare_match:
+            f_a = compare_match.group(1).strip()
+            f_b = compare_match.group(2).strip()
+            return AgentPlan(
+                reply="Opening a diff.",
+                actions=[AgentAction(type="vscode_diff", path=f_a, destination=f_b)]
+            )
+
+        # VS Code: Quick open: "quick open file <name>", "quick open <name>"
+        quick_open_m = re.search(r'^quick\s+open(?:\s+file)?\s+(.+?)[.!?]*$', cmd, re.IGNORECASE)
+        if quick_open_m:
+            target_name = quick_open_m.group(1).strip()
+            return AgentPlan(
+                reply=f"Opening {target_name}.",
+                actions=[AgentAction(type="vscode_quick_open", path=target_name)]
+            )
+
+        # VS Code: Search in project: "search in project for <text>", "search project for <text>"
+        search_proj_m = re.search(r'^search\s+(?:in\s+)?project\s+for\s+(.+?)[.!?]*$', cmd, re.IGNORECASE)
+        if search_proj_m:
+            proj_query = search_proj_m.group(1).strip()
+            return AgentPlan(
+                reply="Searching the project.",
+                actions=[AgentAction(type="vscode_search_project", text=proj_query)]
+            )
+
         # 12. Code Editor / VS Code navigation & line jumps
         # e.g. "Open app.py in VS Code", "Open my Django project in VS Code", "Go to line 25", "jump to line thirty six"
         jump_line = re.search(r'^(?:go\s+to|jump\s+to|navigate\s+to)\s+line\s+(.+?)[.!?]*$', cmd, re.IGNORECASE)
         if jump_line:
             from app.editor.code_edit_parser import _parse_line_number
-            line_num = _parse_line_number(jump_line.group(1).strip())
+            raw_t = jump_line.group(1).strip()
+            line_num = _parse_line_number(raw_t)
             if line_num:
+                reply_str = f"Line {line_num}." if raw_t.isdigit() else f"Going to line {line_num}."
                 return AgentPlan(
-                    reply=f"Going to line {line_num}.",
+                    reply=reply_str,
                     actions=[AgentAction(type="vscode_jump_line", line_number=line_num)]
                 )
 
@@ -682,7 +1004,8 @@ class FastCommandRouter:
                     type="vscode_edit",
                     text=parsed.token,
                     line_number=parsed.line_number or None
-                )]
+                )],
+                needs_confirmation=parsed.needs_confirmation
             )
 
         # 14. Project / Workspace Opening

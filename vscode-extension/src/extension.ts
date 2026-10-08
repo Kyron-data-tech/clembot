@@ -256,6 +256,264 @@ async function handleCommand(cmd: any) {
                 break;
             }
 
+            case 'go_to_definition': {
+                await vscode.commands.executeCommand('editor.action.revealDefinition');
+                result.success = true;
+                result.message = 'Going to definition.';
+                break;
+            }
+
+            case 'rename_symbol': {
+                const newName = params.new_name;
+                if (newName) {
+                    // Position cursor first if line provided
+                    if (params.line_number && editor) {
+                        const pos = new vscode.Position(Math.max(0, params.line_number - 1), params.column || 0);
+                        editor.selection = new vscode.Selection(pos, pos);
+                    }
+                    await vscode.commands.executeCommand('editor.action.rename', [newName]);
+                    result.success = true;
+                    result.message = `Renamed to ${newName}.`;
+                } else {
+                    result.error = 'new_name param required for rename_symbol';
+                }
+                break;
+            }
+
+            case 'format_document': {
+                await vscode.commands.executeCommand('editor.action.formatDocument');
+                result.success = true;
+                result.message = 'Document formatted.';
+                break;
+            }
+
+            case 'format_selection': {
+                await vscode.commands.executeCommand('editor.action.formatSelection');
+                result.success = true;
+                result.message = 'Selection formatted.';
+                break;
+            }
+
+            case 'select_line': {
+                if (editor) {
+                    const lineNum = Math.max(1, params.line_number || (editor.selection.active.line + 1)) - 1;
+                    const line = editor.document.lineAt(Math.min(lineNum, editor.document.lineCount - 1));
+                    const selection = new vscode.Selection(line.range.start, line.range.end);
+                    editor.selection = selection;
+                    editor.revealRange(line.range, vscode.TextEditorRevealType.InCenter);
+                    result.success = true;
+                    result.message = `Line ${lineNum + 1} selected.`;
+                    result.selected_text = editor.document.getText(line.range);
+                } else {
+                    result.error = 'No active editor';
+                }
+                break;
+            }
+
+            case 'toggle_comment': {
+                if (editor && params.line_number) {
+                    const lineNum = Math.max(1, params.line_number) - 1;
+                    const endNum = params.end_line ? Math.max(1, params.end_line) - 1 : lineNum;
+                    const start = new vscode.Position(lineNum, 0);
+                    const end = new vscode.Position(endNum, editor.document.lineAt(Math.min(endNum, editor.document.lineCount - 1)).range.end.character);
+                    editor.selection = new vscode.Selection(start, end);
+                }
+                await vscode.commands.executeCommand('editor.action.commentLine');
+                result.success = true;
+                result.message = 'Comment toggled.';
+                break;
+            }
+
+            case 'duplicate_line': {
+                if (editor) {
+                    if (params.line_number) {
+                        const lineNum = Math.max(1, params.line_number) - 1;
+                        const pos = new vscode.Position(lineNum, 0);
+                        editor.selection = new vscode.Selection(pos, pos);
+                    }
+                    await vscode.commands.executeCommand('editor.action.copyLinesDownAction');
+                    result.success = true;
+                    result.message = 'Line duplicated.';
+                } else {
+                    result.error = 'No active editor';
+                }
+                break;
+            }
+
+            case 'move_line_up': {
+                const moveUpCount = params.count || 1;
+                for (let i = 0; i < moveUpCount; i++) {
+                    await vscode.commands.executeCommand('editor.action.moveLinesUpAction');
+                }
+                result.success = true;
+                result.message = `Moved line up ${moveUpCount} time(s).`;
+                break;
+            }
+
+            case 'move_line_down': {
+                const moveDownCount = params.count || 1;
+                for (let i = 0; i < moveDownCount; i++) {
+                    await vscode.commands.executeCommand('editor.action.moveLinesDownAction');
+                }
+                result.success = true;
+                result.message = `Moved line down ${moveDownCount} time(s).`;
+                break;
+            }
+
+            case 'redo': {
+                await vscode.commands.executeCommand('redo');
+                result.success = true;
+                result.message = 'Redo applied.';
+                break;
+            }
+
+            case 'get_line_text': {
+                if (editor) {
+                    const lineNum = Math.max(1, params.line_number || (editor.selection.active.line + 1)) - 1;
+                    const lineIdx = Math.min(lineNum, editor.document.lineCount - 1);
+                    const lineText = editor.document.lineAt(lineIdx).text;
+                    result.success = true;
+                    result.line = lineIdx + 1;
+                    result.text = lineText;
+                } else {
+                    result.error = 'No active editor';
+                }
+                break;
+            }
+
+            case 'get_selection_range': {
+                if (editor) {
+                    const sel = editor.selection;
+                    result.success = true;
+                    result.start_line = sel.start.line + 1;
+                    result.start_col = sel.start.character + 1;
+                    result.end_line = sel.end.line + 1;
+                    result.end_col = sel.end.character + 1;
+                    result.selected_text = editor.document.getText(sel);
+                } else {
+                    result.error = 'No active editor';
+                }
+                break;
+            }
+
+            case 'insert_snippet': {
+                if (editor && params.snippet) {
+                    if (params.line_number) {
+                        const lineNum = Math.max(1, params.line_number) - 1;
+                        const col = params.column || 0;
+                        const pos = new vscode.Position(lineNum, col);
+                        editor.selection = new vscode.Selection(pos, pos);
+                    }
+                    await editor.insertSnippet(new vscode.SnippetString(params.snippet));
+                    result.success = true;
+                    result.message = 'Snippet inserted.';
+                } else {
+                    result.error = !editor ? 'No active editor' : 'snippet param required';
+                }
+                break;
+            }
+
+            case 'delete_lines': {
+                if (editor) {
+                    const startLine = Math.max(1, params.start_line || params.line_number || 1) - 1;
+                    const endLine = params.end_line ? Math.max(1, params.end_line) - 1 : startLine;
+                    const lineCount = editor.document.lineCount;
+                    const clampedEnd = Math.min(endLine, lineCount - 1);
+
+                    const editSuccess = await editor.edit(editBuilder => {
+                        // Include newline so the lines are fully removed
+                        const startPos = new vscode.Position(startLine, 0);
+                        const afterEnd = clampedEnd + 1 < lineCount
+                            ? new vscode.Position(clampedEnd + 1, 0)
+                            : new vscode.Position(clampedEnd, editor!.document.lineAt(clampedEnd).range.end.character);
+                        editBuilder.delete(new vscode.Range(startPos, afterEnd));
+                    });
+
+                    result.success = editSuccess;
+                    result.message = editSuccess
+                        ? `Deleted lines ${startLine + 1}–${clampedEnd + 1}.`
+                        : 'Failed to delete lines.';
+                } else {
+                    result.error = 'No active editor';
+                }
+                break;
+            }
+
+            case 'insert_line': {
+                if (editor) {
+                    const lineNum = Math.max(1, params.line_number || 1) - 1;
+                    const text = params.text || '';
+                    const lineCount = editor.document.lineCount;
+                    const insertPos = lineNum < lineCount
+                        ? new vscode.Position(lineNum, 0)
+                        : new vscode.Position(lineCount - 1, editor.document.lineAt(lineCount - 1).range.end.character);
+
+                    const editSuccess = await editor.edit(editBuilder => {
+                        if (lineNum < lineCount) {
+                            editBuilder.insert(insertPos, text + '\n');
+                        } else {
+                            editBuilder.insert(insertPos, '\n' + text);
+                        }
+                    });
+
+                    result.success = editSuccess;
+                    result.message = editSuccess ? `Inserted line at ${lineNum + 1}.` : 'Failed to insert line.';
+                } else {
+                    result.error = 'No active editor';
+                }
+                break;
+            }
+
+            case 'replace_line': {
+                if (editor) {
+                    const lineNum = Math.max(1, params.line_number || 1) - 1;
+                    const lineIdx = Math.min(lineNum, editor.document.lineCount - 1);
+                    const newText = params.new_text ?? params.text ?? '';
+                    const line = editor.document.lineAt(lineIdx);
+
+                    const editSuccess = await editor.edit(editBuilder => {
+                        editBuilder.replace(line.range, newText);
+                    });
+
+                    result.success = editSuccess;
+                    result.message = editSuccess ? `Line ${lineIdx + 1} replaced.` : 'Failed to replace line.';
+                } else {
+                    result.error = 'No active editor';
+                }
+                break;
+            }
+
+            case 'find_and_replace': {
+                if (editor) {
+                    const search = params.search || '';
+                    const replacement = params.replace ?? '';
+                    const allText = editor.document.getText();
+                    const useRegex = params.use_regex === true;
+
+                    let newText: string;
+                    if (useRegex) {
+                        newText = allText.replace(new RegExp(search, 'g'), replacement);
+                    } else {
+                        newText = allText.split(search).join(replacement);
+                    }
+
+                    const fullRange = new vscode.Range(
+                        new vscode.Position(0, 0),
+                        new vscode.Position(editor.document.lineCount - 1, editor.document.lineAt(editor.document.lineCount - 1).range.end.character)
+                    );
+
+                    const editSuccess = await editor.edit(editBuilder => {
+                        editBuilder.replace(fullRange, newText);
+                    });
+
+                    result.success = editSuccess;
+                    result.message = editSuccess ? `Replaced all occurrences of "${search}".` : 'Find-and-replace failed.';
+                } else {
+                    result.error = 'No active editor';
+                }
+                break;
+            }
+
             default:
                 result.error = `Unknown action: ${action}`;
         }

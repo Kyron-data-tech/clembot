@@ -35,6 +35,7 @@ class ParsedEditCommand:
     token: str          # The full token string for AgentAction.text
     line_number: int    # Primary line number (0 if not applicable)
     summary: str        # Human-readable description for TTS reply
+    needs_confirmation: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -133,7 +134,7 @@ def parse_voice_edit(command: str) -> Optional[ParsedEditCommand]:
     # 1. DELETE LINE(S)
     # delete lines N to M / N through M / N and M
     m = re.search(
-        r'^(?:delete|remove|erase|drop)\s+(?:the\s+)?lines?\s+(\w+(?:[\s-]+\w+)?)\s+(?:to|through|and|-)\s+(\w+(?:[\s-]+\w+)?)[.!?]*$',
+        r'^(?:delete|remove|erase|drop|get\s+rid\s+of)\s+(?:the\s+)?lines?\s+(\w+(?:[\s-]+\w+)?)\s+(?:to|through|and|-)\s+(\w+(?:[\s-]+\w+)?)[.!?]*$',
         cmd, re.IGNORECASE
     )
     if m:
@@ -143,54 +144,88 @@ def parse_voice_edit(command: str) -> Optional[ParsedEditCommand]:
             return ParsedEditCommand(
                 token=f"DELETE_LINES:{s}:{e}",
                 line_number=s,
-                summary=f"Deleting lines {s} to {e}."
+                summary=f"Lines {s} to {e} deleted.",
+                needs_confirmation=True
             )
 
-    # delete line N / remove line N / drop line N
+    # delete line N / remove line N / drop line N / get rid of line N / delete this line / delete current line
     m = re.search(
-        r'^(?:delete|remove|erase|drop)\s+(?:the\s+)?line\s+(\w+(?:[\s-]+\w+)?)[.!?]*$',
+        r'^(?:delete|remove|erase|drop|get\s+rid\s+of)\s+(?:the\s+|this\s+|current\s+)?line(?:\s+(\w+(?:[\s-]+\w+)?))?[.!?]*$',
         cmd, re.IGNORECASE
     )
     if not m:
-        m = re.search(LP + r'(?:delete|remove|erase|drop)[.!?]*$', cmd, re.IGNORECASE)
+        m = re.search(LP + r'(?:delete|remove|erase|drop|get\s+rid\s+of)[.!?]*$', cmd, re.IGNORECASE)
     if m:
-        ln = _parse_line_number(m.group(1))
+        raw_ln = m.group(1) if m.lastindex else None
+        if raw_ln and raw_ln.lower() in ("this", "current"):
+            return ParsedEditCommand(
+                token="DELETE_LINE:0",
+                line_number=0,
+                summary="Line deleted.",
+                needs_confirmation=True
+            )
+        if not raw_ln:
+            if re.search(r'\b(?:this|current)\s+line\b', cmd, re.IGNORECASE):
+                return ParsedEditCommand(
+                    token="DELETE_LINE:0",
+                    line_number=0,
+                    summary="Line deleted.",
+                    needs_confirmation=True
+                )
+            ln = None
+        else:
+            ln = _parse_line_number(raw_ln)
         if ln:
             return ParsedEditCommand(
                 token=f"DELETE_LINE:{ln}",
                 line_number=ln,
-                summary=f"Deleting line {ln}."
+                summary=f"Line {ln} deleted.",
+                needs_confirmation=True
             )
 
     # 2. COMMENT / UNCOMMENT LINE
     m = re.search(
-        r'^(?:comment\s+out|comment)\s+(?:the\s+)?line\s+(\w+(?:[\s-]+\w+)?)[.!?]*$',
+        r'^(?:comment\s+out|comment)\s+(?:the\s+|this\s+|current\s+)?line(?:\s+(\w+(?:[\s-]+\w+)?))?[.!?]*$',
         cmd, re.IGNORECASE
     )
     if not m:
         m = re.search(LP + r'(?:comment\s+out|comment)[.!?]*$', cmd, re.IGNORECASE)
     if m:
-        ln = _parse_line_number(m.group(1))
+        raw_ln = m.group(1) if m.lastindex else None
+        if not raw_ln or raw_ln.lower() in ("this", "the", "current"):
+            return ParsedEditCommand(
+                token="COMMENT_LINE:0",
+                line_number=0,
+                summary="Line commented."
+            )
+        ln = _parse_line_number(raw_ln)
         if ln:
             return ParsedEditCommand(
                 token=f"COMMENT_LINE:{ln}",
                 line_number=ln,
-                summary=f"Commenting out line {ln}."
+                summary=f"Line {ln} commented."
             )
 
     m = re.search(
-        r'^(?:uncomment\s+out|uncomment)\s+(?:the\s+)?line\s+(\w+(?:[\s-]+\w+)?)[.!?]*$',
+        r'^(?:uncomment\s+out|uncomment)\s+(?:the\s+|this\s+|current\s+)?line(?:\s+(\w+(?:[\s-]+\w+)?))?[.!?]*$',
         cmd, re.IGNORECASE
     )
     if not m:
         m = re.search(LP + r'(?:uncomment\s+out|uncomment)[.!?]*$', cmd, re.IGNORECASE)
     if m:
-        ln = _parse_line_number(m.group(1))
+        raw_ln = m.group(1) if m.lastindex else None
+        if not raw_ln or raw_ln.lower() in ("this", "the", "current"):
+            return ParsedEditCommand(
+                token="UNCOMMENT_LINE:0",
+                line_number=0,
+                summary="Line uncommented."
+            )
+        ln = _parse_line_number(raw_ln)
         if ln:
             return ParsedEditCommand(
                 token=f"UNCOMMENT_LINE:{ln}",
                 line_number=ln,
-                summary=f"Uncommenting line {ln}."
+                summary=f"Line {ln} uncommented."
             )
 
     # 3. WORD / TOKEN REPLACEMENT IN LINE (Paraphrases & Restatements)
@@ -252,7 +287,7 @@ def parse_voice_edit(command: str) -> Optional[ParsedEditCommand]:
             return ParsedEditCommand(
                 token=f"REPLACE_IN_LINE:{ln}:{old}::{new}",
                 line_number=ln,
-                summary=f"Replacing '{old}' with '{new}' on line {ln}."
+                summary=f"Replaced on line {ln}."
             )
 
     # 3d. Post-position line reference: <verb> [the] <old> <connector> <new> [in/on/at] line N
@@ -273,26 +308,49 @@ def parse_voice_edit(command: str) -> Optional[ParsedEditCommand]:
                 return ParsedEditCommand(
                     token=f"REPLACE_LINE:{ln}::{new}",
                     line_number=ln,
-                    summary=f"Replacing line {ln} with: {new}"
+                    summary=f"Line {ln} replaced."
                 )
 
         if ln and old and new:
             return ParsedEditCommand(
                 token=f"REPLACE_IN_LINE:{ln}:{old}::{new}",
                 line_number=ln,
-                summary=f"Replacing '{old}' with '{new}' on line {ln}."
+                summary=f"Replaced on line {ln}."
             )
 
     # 4. REPLACE ENTIRE LINE (Paraphrases & Rewordings)
     # Examples:
-    # "replace line 4 with x = 0"
-    # "in line 36 replace with x = 0"
-    # "line 36 rewrite as x = 0"
-    # "overwrite line 9 with for item in names:"
-    # "set line 10 to return True"
-    # "make line 10 return True"
-    # "put x = 0 on line 3"
+    # "replace line 20 with x = 5"
+    # "change line 12 in config.py to DEBUG = True"
+    # "make line 12 say DEBUG = True"
+    # "on line 12 put DEBUG = True"
+    # "change line 12 to DEBUG = True"
+    # "update line 12 to DEBUG = True"
+    # "fix line 12 with DEBUG = True"
+    # "put x = 5 on line 20"
+    m_file_line = re.search(
+        r'^(?:change|replace|update|fix|modify)\s+line\s+(\w+(?:[\s-]+\w+)?)\s+in\s+([^\s]+\.[a-zA-Z0-9]{1,6})\s+(?:to|with|as)\s+(.+?)[.!?]*$',
+        cmd, re.IGNORECASE
+    )
+    if m_file_line:
+        ln = _parse_line_number(m_file_line.group(1))
+        new_text = m_file_line.group(3).strip().rstrip('.!?')
+        if ln and new_text:
+            return ParsedEditCommand(
+                token=f"REPLACE_LINE:{ln}::{new_text}",
+                line_number=ln,
+                summary=f"Line {ln} replaced."
+            )
+
     line_replace_patterns = [
+        # make line N say <text> / make line N <text>
+        r'^make\s+line\s+(\w+(?:[\s-]+\w+)?)\s+(?:say\s+|be\s+)?(.+?)[.!?]*$',
+        # on/in/at line N put/write/add/set <text>
+        r'^(?:on|in|at)\s+line\s+(\w+(?:[\s-]+\w+)?)\s+(?:put|write|add|set)\s+(.+?)[.!?]*$',
+        # on line N make it <text> / on line N make line say <text>
+        r'^(?:on|in|at)\s+line\s+(\w+(?:[\s-]+\w+)?)\s+make\s+(?:it\s+|line\s+)?(?:say\s+|be\s+)?(.+?)[.!?]*$',
+        # update/fix/modify line N with/to <text>
+        r'^(?:update|fix|modify)\s+line\s+(\w+(?:[\s-]+\w+)?)\s+(?:with|to|as)\s+(.+?)[.!?]*$',
         # replace/change/overwrite/rewrite/set [entire/whole] line N with/to/as ...
         r'^(?:replace|rewrite|overwrite|set|change)\s+(?:(?:the\s+)?(?:entire|whole)\s+)?line\s+(\w+(?:[\s-]+\w+)?)\s+(?:with|to|as)\s+(.+?)[.!?]*$',
         # change/replace the content in/of line N to/with/as ...
@@ -319,14 +377,84 @@ def parse_voice_edit(command: str) -> Optional[ParsedEditCommand]:
                 return ParsedEditCommand(
                     token=f"REPLACE_LINE:{ln}::{new_text}",
                     line_number=ln,
-                    summary=f"Replacing line {ln} with: {new_text}"
+                    summary=f"Line {ln} replaced."
                 )
 
-    # 5. INSERT AFTER LINE
+    # 5. INSERT BLANK / NEW LINE BELOW OR ABOVE
+    # "Insert a new line below line 8" / "Add a new line below line 8"
+    m_new_below = re.search(
+        r'^(?:insert|add)\s+(?:a\s+)?(?:new\s+)?line\s+(?:below|after)\s+(?:the\s+)?line\s+(\w+(?:[\s-]+\w+)?)[.!?]*$',
+        cmd, re.IGNORECASE
+    )
+    if m_new_below:
+        ln = _parse_line_number(m_new_below.group(1))
+        if ln:
+            return ParsedEditCommand(
+                token=f"INSERT_AFTER:{ln}::",
+                line_number=ln,
+                summary="New line added."
+            )
+
+    # "Insert a new line above line 8" / "Add a new line above line 8"
+    m_new_above = re.search(
+        r'^(?:insert|add)\s+(?:a\s+)?(?:new\s+)?line\s+(?:above|before)\s+(?:the\s+)?line\s+(\w+(?:[\s-]+\w+)?)[.!?]*$',
+        cmd, re.IGNORECASE
+    )
+    if m_new_above:
+        ln = _parse_line_number(m_new_above.group(1))
+        if ln:
+            return ParsedEditCommand(
+                token=f"INSERT_BEFORE:{ln}::",
+                line_number=ln,
+                summary="New line added."
+            )
+
+    # "Add text at the end of line 9"
+    m_add_end = re.search(
+        r'^(?:add|insert|append)\s+(.+?)\s+at\s+(?:the\s+)?end\s+of\s+line\s+(\w+(?:[\s-]+\w+)?)[.!?]*$',
+        cmd, re.IGNORECASE
+    )
+    if m_add_end:
+        text = m_add_end.group(1).strip().rstrip('.!?')
+        ln = _parse_line_number(m_add_end.group(2))
+        if ln and text:
+            return ParsedEditCommand(
+                token=f"APPEND_TO_LINE:{ln}::{text}",
+                line_number=ln,
+                summary="Added."
+            )
+
+    # ADD TRY-EXCEPT (check before generic add at line)
+    m_try = re.search(
+        r'^(?:add\s+(?:a\s+)?try\s*(?:except|catch)|wrap\s+.*?in\s+(?:a\s+)?(?:try|error\s+handling)).*?(?:at\s+line\s+(\w+(?:[\s-]+\w+)?))?[.!?]*$',
+        cmd, re.IGNORECASE
+    )
+    if m_try:
+        ln = _parse_line_number(m_try.group(1)) if m_try.group(1) else 1
+        return ParsedEditCommand(
+            token=f"ADD_TRY_EXCEPT:{ln}",
+            line_number=ln,
+            summary=f"Wrapping line {ln} in a try-except block."
+        )
+
+    # "Add import os at line 1" / "Add <text> at line N"
+    m_add_at_line = re.search(
+        r'^(?:insert|add)\s+(.+?)\s+at\s+line\s+(\w+(?:[\s-]+\w+)?)[.!?]*$',
+        cmd, re.IGNORECASE
+    )
+    if m_add_at_line:
+        text = m_add_at_line.group(1).strip().rstrip('.!?')
+        ln = _parse_line_number(m_add_at_line.group(2))
+        if ln and text:
+            summary = "Import added." if "import" in text.lower() else "New line added."
+            return ParsedEditCommand(
+                token=f"INSERT_BEFORE:{ln}::{text}",
+                line_number=ln,
+                summary=summary
+            )
+
+    # 6. INSERT AFTER LINE (with content)
     # "insert print hello after line 5"
-    # "add a new line after line 5 saying print hello"
-    # "after line 5 insert print hello"
-    # "insert after line 5: print hello"
     m_after_normal = re.search(
         r'^(?:insert|add)\s+(?:a\s+)?(?:new\s+)?(?:line\s+)?(.+?)\s+after\s+(?:the\s+)?line\s+(\w+(?:[\s-]+\w+)?)[.!?]*$',
         cmd, re.IGNORECASE
@@ -361,13 +489,10 @@ def parse_voice_edit(command: str) -> Optional[ParsedEditCommand]:
             return ParsedEditCommand(
                 token=f"INSERT_AFTER:{ln}::{text}",
                 line_number=ln,
-                summary=f"Inserting '{text}' after line {ln}."
+                summary="New line added."
             )
 
-    # 6. INSERT BEFORE LINE
-    # "insert x = 0 before line 3"
-    # "before line 3 add x = 0"
-    # "insert before line 3: x = 0"
+    # 7. INSERT BEFORE LINE (with content)
     m_before_normal = re.search(
         r'^(?:insert|add)\s+(?:a\s+)?(?:new\s+)?(?:line\s+)?(.+?)\s+before\s+(?:the\s+)?line\s+(\w+(?:[\s-]+\w+)?)[.!?]*$',
         cmd, re.IGNORECASE
@@ -402,32 +527,83 @@ def parse_voice_edit(command: str) -> Optional[ParsedEditCommand]:
             return ParsedEditCommand(
                 token=f"INSERT_BEFORE:{ln}::{text}",
                 line_number=ln,
-                summary=f"Inserting '{text}' before line {ln}."
+                summary="New line added."
             )
 
-    # 7. RENAME FUNCTION
-    m = re.search(
-        r'^(?:rename|change)\s+(?:the\s+)?function(?:\s+name)?\s+(\w+)\s+to\s+(\w+)[.!?]*$',
-        cmd, re.IGNORECASE
-    )
-    if m:
-        return ParsedEditCommand(
-            token=f"RENAME_FUNC:{m.group(1)}:{m.group(2)}",
-            line_number=0,
-            summary=f"Renaming function {m.group(1)} to {m.group(2)}."
-        )
+    # 8. LINE REORGANIZATION & MANIPULATION
+    # "Duplicate line 25" / "Duplicate this line" / "Duplicate line"
+    m_dup = re.search(r'^(?:duplicate|clone)\s+(?:the\s+|this\s+|current\s+)?line(?:\s+(\w+(?:[\s-]+\w+)?))?[.!?]*$', cmd, re.IGNORECASE)
+    if m_dup:
+        raw_ln = m_dup.group(1) if m_dup.lastindex else None
+        if not raw_ln or raw_ln.lower() in ("this", "the", "current"):
+            return ParsedEditCommand(token="DUPLICATE_LINE:0", line_number=0, summary="Line duplicated.")
+        ln = _parse_line_number(raw_ln)
+        if ln:
+            return ParsedEditCommand(token=f"DUPLICATE_LINE:{ln}", line_number=ln, summary="Line duplicated.")
 
-    # 8. ADD TRY-EXCEPT
-    m = re.search(
-        r'^(?:add\s+(?:a\s+)?try\s*(?:except|catch)|wrap\s+.*?in\s+(?:a\s+)?(?:try|error\s+handling)).*?(?:at\s+line\s+(\w+(?:[\s-]+\w+)?))?[.!?]*$',
-        cmd, re.IGNORECASE
-    )
-    if m:
-        ln = _parse_line_number(m.group(1)) if m.group(1) else 1
-        return ParsedEditCommand(
-            token=f"ADD_TRY_EXCEPT:{ln}",
-            line_number=ln,
-            summary=f"Wrapping line {ln} in a try-except block."
-        )
+    # "Move line 40 up / down" / "Move line up" / "Move this line up"
+    m_move = re.search(r'^move\s+(?:the\s+|this\s+|current\s+)?line(?:\s+(\w+(?:[\s-]+\w+)?))?\s+(up|down)[.!?]*$', cmd, re.IGNORECASE)
+    if m_move:
+        raw_ln = m_move.group(1) if m_move.group(1) else None
+        direction = m_move.group(2).lower()
+        if not raw_ln or raw_ln.lower() in ("this", "the", "current"):
+            tok = "MOVE_LINE_UP:0" if direction == "up" else "MOVE_LINE_DOWN:0"
+            return ParsedEditCommand(token=tok, line_number=0, summary="Line moved.")
+        ln = _parse_line_number(raw_ln)
+        if ln:
+            tok = f"MOVE_LINE_UP:{ln}" if direction == "up" else f"MOVE_LINE_DOWN:{ln}"
+            return ParsedEditCommand(token=tok, line_number=ln, summary="Line moved.")
+
+    # "Indent line 12" / "Outdent line 12"
+    m_indent = re.search(r'^(indent|outdent)\s+(?:the\s+|this\s+|current\s+)?line(?:\s+(\w+(?:[\s-]+\w+)?))?[.!?]*$', cmd, re.IGNORECASE)
+    if m_indent:
+        act = m_indent.group(1).lower()
+        raw_ln = m_indent.group(2) if m_indent.lastindex >= 2 else None
+        ln = _parse_line_number(raw_ln) if raw_ln else 0
+        tok = f"INDENT_LINE:{ln}" if act == "indent" else f"OUTDENT_LINE:{ln}"
+        rep = "Indented." if act == "indent" else "Outdented."
+        return ParsedEditCommand(token=tok, line_number=ln, summary=rep)
+
+    # "Select line 18" / "Select this line" / "Select line"
+    m_sel = re.search(r'^select\s+(?:the\s+|this\s+|current\s+)?line(?:\s+(\w+(?:[\s-]+\w+)?))?[.!?]*$', cmd, re.IGNORECASE)
+    if m_sel:
+        raw_ln = m_sel.group(1) if m_sel.lastindex else None
+        if not raw_ln or raw_ln.lower() in ("this", "the", "current"):
+            return ParsedEditCommand(token="SELECT_LINE:0", line_number=0, summary="Line selected.")
+        ln = _parse_line_number(raw_ln)
+        if ln:
+            return ParsedEditCommand(token=f"SELECT_LINE:{ln}", line_number=ln, summary="Line 18 selected." if ln == 18 else f"Line {ln} selected.")
+
+    # "Copy line 18"
+    m_copy = re.search(r'^copy\s+(?:the\s+)?line\s+(\w+(?:[\s-]+\w+)?)[.!?]*$', cmd, re.IGNORECASE)
+    if m_copy:
+        ln = _parse_line_number(m_copy.group(1))
+        if ln:
+            return ParsedEditCommand(token=f"COPY_LINE:{ln}", line_number=ln, summary="Copied.")
+
+    # 9. REFACTORING & WHOLE-FILE ACTIONS
+    # "Rename variable x to total"
+    m_ren_var = re.search(r'^(?:rename|change)\s+(?:the\s+)?(?:variable|var)\s+(\w+)\s+to\s+(\w+)[.!?]*$', cmd, re.IGNORECASE)
+    if m_ren_var:
+        return ParsedEditCommand(token=f"RENAME_VAR:{m_ren_var.group(1)}:{m_ren_var.group(2)}", line_number=0, summary="Renamed.")
+
+    # "Rename function foo to bar"
+    m_ren_fn = re.search(r'^(?:rename|change)\s+(?:the\s+)?function(?:\s+name)?\s+(\w+)\s+to\s+(\w+)[.!?]*$', cmd, re.IGNORECASE)
+    if m_ren_fn:
+        return ParsedEditCommand(token=f"RENAME_FUNC:{m_ren_fn.group(1)}:{m_ren_fn.group(2)}", line_number=0, summary="Renamed.")
+
+    # "Format the file"
+    if re.search(r'^format\s+(?:the\s+)?(?:file|document|code)[.!?]*$', cmd, re.IGNORECASE):
+        return ParsedEditCommand(token="FORMAT_FILE", line_number=0, summary="Formatted.")
+
+    # "Find todo" / "Find in file"
+    m_find = re.search(r'^(?:find|search\s+for)\s+(.+?)(?:\s+in\s+(?:the\s+)?file)?[.!?]*$', cmd, re.IGNORECASE)
+    if m_find and not cmd.lower().startswith(("find file", "find my", "search for file", "search for my")):
+        q = m_find.group(1).strip().rstrip('.!?')
+        return ParsedEditCommand(token=f"FIND_IN_FILE:{q}", line_number=0, summary="Find open.")
+
+    # "Replace all"
+    if cmd.lower().strip(".!? ") in ["replace all", "find and replace"]:
+        return ParsedEditCommand(token="REPLACE_ALL", line_number=0, summary="Find open.")
 
     return None

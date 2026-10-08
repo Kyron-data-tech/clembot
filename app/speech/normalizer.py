@@ -185,6 +185,8 @@ class SpeechNormalizer:
 
         # spoken "dot" → file extension (e.g. "main dot py" → "main.py")
         " dot py": ".py",
+        " dot pie": ".py",
+        " dot jay s": ".js",
         " dot txt": ".txt",
         " dot js": ".js",
         " dot ts": ".ts",
@@ -211,6 +213,17 @@ class SpeechNormalizer:
         " dot mp3": ".mp3",
         " dot mp4": ".mp4",
         " dot zip": ".zip",
+
+        # FAQ paraphrase normalisations
+        "tab over": "next tab",
+        "move right": "next tab",
+        "go back a tab": "previous tab",
+        "undo close tab": "reopen closed tab",
+        "fire up": "open",
+        "bring up": "open",
+        "get rid of line": "delete line",
+        "take me to line": "go to line",
+        "scroll to line": "go to line",
 
         # spoken digit normalisation (hyphens from TTS)
         "thirty-two": "thirty two",
@@ -268,10 +281,25 @@ class SpeechNormalizer:
 
     # Leading filler phrases to strip from commands
     FILLER_PREFIXES: List[str] = [
+        "hey clembot can you please",
+        "hey clembot could you please",
+        "hey clembot would you please",
+        "hey clembot can you",
+        "hey clembot could you",
+        "hey clembot please",
+        "hey clembot",
+        "clembot can you please",
+        "clembot could you please",
+        "clembot please",
+        "clembot can you",
+        "clembot",
         "can you please",
         "could you please",
         "would you please",
         "please",
+        "can you open",
+        "could you open",
+        "would you open",
         "can you",
         "could you",
         "would you",
@@ -415,9 +443,12 @@ class SpeechNormalizer:
          lambda m: f'{m.group(1)}.{m.group(2)}'),
         # Generic spoken "dot" between word tokens → file extension separator
         # e.g. "amrit dot py" → "amrit.py", "notes dot cpp" → "notes.cpp"
-        # Only fires when the right-hand word is a short extension (1–6 chars)
+        (re.compile(r'\b(\w+)\s+dot\s+(?:pie|pi)\b', re.IGNORECASE), r'\1.py'),
+        (re.compile(r'\b(\w+)\s+dot\s+(?:jay\s*s|js)\b', re.IGNORECASE), r'\1.js'),
         (re.compile(r'\b(\w+)\s+dot\s+([a-zA-Z0-9]{1,6})\b', re.IGNORECASE),
          lambda m: f'{m.group(1)}.{m.group(2)}'),
+        # "line 55 please" → "go to line 55"
+        (re.compile(r'^(?:line|inline)\s+(\d+|\w+)\s+please[.!?]*$', re.IGNORECASE), r'go to line \1'),
         # Repair misheard "amrat" in Windows path patterns:
         # e.g. "users android desktop", "users camera desktop", "users amrit desktop"
         (re.compile(r'\b(users|user)\s+(?:android|camera|amrit|amruth|amrath|amret|emrat|omrat|imrat|anrat|anrod|camrat|kamrat|am\s+rat|aim\s+rat|i[\'’]?m\s+rat|an\s+rod)\b', re.IGNORECASE), r'\1 amrat'),
